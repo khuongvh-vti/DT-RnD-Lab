@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phòng R&amp;D Digital Twin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Hướng thiết kế: "phòng điều độ" – nền thép lạnh, mực xanh than, điểm nhấn đồng (dây quấn MBA) và xanh dầu.
+   Bố cục: phòng làm việc minh họa ở trên; dưới là cây tri thức (trái) + bảng chi tiết (phải). */
+:root{
+  --bg:#EEF1F4; --panel:#FFFFFF; --ink:#13212F; --muted:#5A6A7A; --line:#D3DAE2;
+  --accent:#B8622A; --teal:#1F7A7A; --wall:#DDE4EB; --floor:#C9D2DB; --desk:#8C6A4F;
+  --k-report:#B8622A; --k-section:#1F7A7A; --k-vendor:#6A55A8; --k-reference:#2F67A8; --k-risk:#B23A3A;
+  --k-decision:#2E7D4F; --k-concept:#4A7FA0; --k-person:#9A4D6A; --k-tool:#5B6B3A; --k-default:#6B7B8C;
+  --font-body:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1720; --panel:#16212C; --ink:#E4EBF2; --muted:#93A4B5; --line:#2A3846;
+    --accent:#E08A4E; --teal:#4FB3B0; --wall:#1A2632; --floor:#223140; --desk:#6E523D;
+    --k-report:#E08A4E; --k-section:#4FB3B0; --k-vendor:#A08CE0; --k-reference:#6FA3E0; --k-risk:#E07070;
+    --k-decision:#5FC08A; --k-concept:#7FB0D0; --k-person:#D088A6; --k-tool:#A6B86E; --k-default:#93A4B5;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1720; --panel:#16212C; --ink:#E4EBF2; --muted:#93A4B5; --line:#2A3846;
+  --accent:#E08A4E; --teal:#4FB3B0; --wall:#1A2632; --floor:#223140; --desk:#6E523D;
+  --k-report:#E08A4E; --k-section:#4FB3B0; --k-vendor:#A08CE0; --k-reference:#6FA3E0; --k-risk:#E07070;
+  --k-decision:#5FC08A; --k-concept:#7FB0D0; --k-person:#D088A6; --k-tool:#A6B86E; --k-default:#93A4B5;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.55}
+header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+header .sub{color:var(--muted);font-size:13px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=search]{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:220px}
+button{font:inherit;font-size:13px;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,.card:focus-visible,.node:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{padding:16px 20px 28px;display:grid;gap:16px}
+section.office{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.office-head{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px 0;gap:12px;flex-wrap:wrap}
+.office-head h2,.tree-head h2{margin:0;font-size:15px;font-weight:600}
+.office-head span{color:var(--muted);font-size:13px}
+#scene{display:block;width:100%;height:auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;padding:12px 16px 16px}
+.card{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--bg)}
+.card.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.card b{display:block;font-size:13px}
+.card small{display:block;color:var(--muted);font-size:12px;line-height:1.35}
+.card .task{color:var(--ink);font-size:12px;margin-top:2px}
+.work{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:16px;align-items:start}
+@media (max-width:900px){.work{grid-template-columns:1fr}}
+.treebox{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tree-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle}
+#tree{display:block;width:100%;height:640px;touch-action:none;cursor:grab;background:
+  radial-gradient(circle at 1px 1px,var(--line) 1px,transparent 0) 0 0/22px 22px}
+#tree:active{cursor:grabbing}
+.link{fill:none;stroke:var(--line);stroke-width:1.4}
+.link.hot{stroke:var(--accent);stroke-width:2}
+.node{cursor:pointer}
+.node text{font-family:var(--font-body);font-size:12.5px;fill:var(--ink)}
+.node .tg{font-size:12px;font-weight:700;fill:var(--panel);pointer-events:none}
+.node.dim{opacity:.28}
+.node.sel text.lbl{font-weight:700}
+.node.match text.lbl{fill:var(--accent);font-weight:600}
+aside.detail{position:sticky;top:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-height:calc(100vh - 24px);overflow:auto}
+.crumb{font-size:12px;color:var(--muted);margin-bottom:6px}
+.crumb a{color:var(--muted);text-decoration:none;cursor:pointer}
+.crumb a:hover{color:var(--accent)}
+aside h3{margin:0 0 8px;font-size:18px;line-height:1.3;text-wrap:balance}
+.meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--bg)}
+.pill.kind{color:#fff;border-color:transparent}
+.body{font-size:14px}
+.body p{margin:.5em 0}
+.body table{border-collapse:collapse;width:100%;font-size:12.5px;margin:.6em 0;display:block;overflow-x:auto}
+.body th,.body td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+.body th{background:var(--bg)}
+.body dl{margin:.4em 0;display:grid;grid-template-columns:1fr;gap:2px}
+.body dt{font-size:12px;color:var(--muted);margin-top:6px}
+.body dd{margin:0}
+.body code{font-family:var(--font-mono);font-size:12px;background:var(--bg);padding:1px 4px;border-radius:4px}
+.body a,.links a{color:var(--teal)}
+.links{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:13px}
+.links ul{margin:4px 0 0;padding-left:18px}
+.kids{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
+.kids button{font-size:12px;padding:4px 9px}
+.muted{color:var(--muted)}
+footer{color:var(--muted);font-size:12px;padding:0 20px 20px}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes glow{0%,100%{opacity:.85}50%{opacity:1}}
+.typing{animation:bob 1.2s ease-in-out infinite}
+.dot{animation:blink 1.2s infinite}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+.screen{animation:glow 3s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.typing,.dot,.screen{animation:none}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Phòng R&amp;D Digital Twin ngành điện</h1>
+    <div class="sub">VTICorp · bản đồ tri thức và báo cáo nghiên cứu · cập nhật <span id="built"></span></div>
+  </div>
+  <div class="tools">
+    <label for="q" class="muted" style="font-size:13px">Tìm trong cây</label>
+    <input id="q" type="search" placeholder="vd. DGA, Hitachi, IEC 60076-7">
+    <button id="expandAll" type="button">Mở rộng tất cả</button>
+    <button id="collapseAll" type="button">Thu gọn</button>
+    <button id="fit" type="button">Vừa khung</button>
+  </div>
+</header>
+
+<main>
+  <section class="office" aria-label="Phòng làm việc">
+    <div class="office-head"><h2>Phòng làm việc</h2><span>Bấm vào một người để xem phần việc và các nhánh họ phụ trách</span></div>
+    <svg id="scene" viewBox="0 0 1100 300" role="img" aria-label="Trưởng phòng và 7 chuyên viên AI đang làm việc"></svg>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <div class="work">
+    <section class="treebox" aria-label="Sơ đồ cây tri thức">
+      <div class="tree-head">
+        <h2>Sơ đồ cây tri thức</h2>
+        <div class="legend" id="legend"></div>
+      </div>
+      <svg id="tree" role="tree" aria-label="Cây tri thức – kéo để di chuyển, cuộn để phóng to"></svg>
+    </section>
+    <aside class="detail" id="detail" aria-live="polite"></aside>
+  </div>
+</main>
+<footer>Kéo để di chuyển cây, cuộn chuột để phóng to/thu nhỏ. Dữ liệu được nhúng sẵn trong trang; khi chạy local bằng <code>python3 dtlab.py serve</code>, các báo cáo mới trong <code>reports/</code> tự xuất hiện.</footer>
+
+<script>
+const DATA = /*__DT_DATA__*/null;
+const NS = "http://www.w3.org/2000/svg";
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const KIND = {root:["report","Gốc"],report:["report","Báo cáo"],section:["section","Mục"],group:["section","Nhóm"],
+  finding:["concept","Kết luận"],concept:["concept","Khái niệm"],vendor:["vendor","Sản phẩm"],reference:["reference","Tài liệu"],
+  case:["reference","Tiền lệ"],policy:["reference","Chính sách"],risk:["risk","Rủi ro"],decision:["decision","Quyết định"],
+  competitor:["vendor","Đối thủ"],feasibility:["decision","Khả thi"],phase:["decision","Giai đoạn"],person:["person","Nhân sự"],
+  tool:["tool","Công cụ"],"swot-s":["decision","SWOT"],"swot-w":["risk","SWOT"],"swot-o":["concept","SWOT"],"swot-t":["risk","SWOT"],topic:["default","Chủ đề"]};
+const kcol = k => css("--k-" + (KIND[k] ? KIND[k][0] : "default"));
+const klabel = k => KIND[k] ? KIND[k][1] : "Chủ đề";
+const TEAM = Object.fromEntries((DATA.team || []).map(p => [p.key, p]));
+
+// ---------- index tree
+const byId = {}; const parent = {};
+(function idx(n, p) { byId[n.id] = n; if (p) parent[n.id] = p.id; (n.children || []).forEach(c => idx(c, n)); })(DATA.tree, null);
+const open = new Set([DATA.tree.id, ...DATA.tree.children.map(c => c.id), "bao-cao-1"]);
+let selected = null, agentFilter = null, matches = new Set();
+const pathTo = id => { const a = []; let c = id; while (c) { a.unshift(c); c = parent[c]; } return a; };
+
+$("#built").textContent = DATA.built || "";
+
+// ---------- legend
+[["report","Báo cáo"],["section","Mục"],["concept","Khái niệm"],["reference","Tài liệu"],["vendor","Sản phẩm"],["decision","Quyết định"],["risk","Rủi ro"],["person","Nhân sự"],["tool","Công cụ"]]
+  .forEach(([k, t]) => { const s = document.createElement("span"); s.innerHTML = `<i style="background:var(--k-${k})"></i>${t}`; $("#legend").appendChild(s); });
+
+// ---------- tree layout & render
+const svg = $("#tree");
+const view = { x: 20, y: 0, k: 1 };
+const g = el("g", {}, svg);
+const COLW = 330, ROWH = 30;
+
+function layout() {
+  let row = 0; const pos = {};
+  (function walk(n, depth) {
+    const kids = open.has(n.id) ? (n.children || []) : [];
+    if (!kids.length) { pos[n.id] = { x: depth * COLW, y: row++ * ROWH, n }; return; }
+    kids.forEach(c => walk(c, depth + 1));
+    const ys = kids.map(c => pos[c.id].y);
+    pos[n.id] = { x: depth * COLW, y: (ys[0] + ys[ys.length - 1]) / 2, n };
+  })(DATA.tree, 0);
+  return pos;
+}
+const trunc = (s, m) => s.length > m ? s.slice(0, m - 1) + "…" : s;
+
+function render() {
+  g.innerHTML = "";
+  const pos = layout(); const hot = new Set(selected ? pathTo(selected) : []);
+  const lg = el("g", {}, g), ng = el("g", {}, g);
+  Object.values(pos).forEach(p => {
+    if (!open.has(p.n.id)) return;
+    (p.n.children || []).forEach(c => {
+      const q = pos[c.id]; if (!q) return;
+      const mx = (p.x + q.x) / 2;
+      el("path", { d: `M${p.x + 8},${p.y} C${mx},${p.y} ${mx},${q.y} ${q.x - 8},${q.y}`, class: "link" + (hot.has(c.id) && hot.has(p.n.id) ? " hot" : "") }, lg);
+    });
+  });
+  Object.values(pos).forEach(p => {
+    const n = p.n, hasKids = (n.children || []).length > 0, isOpen = open.has(n.id);
+    const cls = ["node"]; if (selected === n.id) cls.push("sel"); if (matches.has(n.id)) cls.push("match");
+    if (agentFilter && n.agent !== agentFilter && !hot.has(n.id)) cls.push("dim");
+    const gg = el("g", { class: cls.join(" "), transform: `translate(${p.x},${p.y})`, tabindex: 0, role: "treeitem", "aria-label": n.title, "aria-expanded": hasKids ? String(isOpen) : "" }, ng);
+    el("title", {}, gg).textContent = n.title;
+    const c = kcol(n.kind);
+    el("circle", { r: hasKids ? 8 : 5.5, fill: hasKids && !isOpen ? c : css("--panel"), stroke: c, "stroke-width": 2.2 }, gg);
+    if (hasKids) { const t = el("text", { class: "tg", x: 0, y: 4, "text-anchor": "middle" }, gg); t.textContent = isOpen ? "−" : "+"; t.style.fill = isOpen ? c : css("--panel"); }
+    const lbl = el("text", { class: "lbl", x: 14, y: 4.5 }, gg);
+    lbl.textContent = trunc(n.title, n.kind === "root" ? 40 : 36);
+    if (n.agent && TEAM[n.agent] && n.kind !== "person") {
+      const w = lbl.getComputedTextLength ? lbl.getComputedTextLength() : 180;
+      const a = el("text", { x: 20 + w, y: 4.5, fill: css("--muted"), "font-size": 11 }, gg); a.textContent = "· " + TEAM[n.agent].name;
+    }
+    gg.addEventListener("click", e => { e.stopPropagation(); onNode(n.id, true); });
+    gg.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNode(n.id, true); } });
+  });
+  applyView();
+}
+function onNode(id, toggle) {
+  const n = byId[id], hasKids = (n.children || []).length;
+  if (toggle && hasKids) { if (selected === id && open.has(id)) open.delete(id); else open.add(id); }
+  selected = id; render(); showDetail(id);
+  try { history.replaceState(null, "", "#" + id); } catch (e) {}
+}
+function applyView() { g.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`); }
+function fit() {
+  const b = g.getBBox(), W = svg.clientWidth, H = svg.clientHeight;
+  if (!b.width) return;
+  view.k = Math.min(1.15, Math.max(.55, Math.min((W - 40) / (b.width + 60), (H - 40) / (b.height + 20))));
+  view.x = 24 - b.x * view.k; view.y = (H - b.height * view.k) / 2 - b.y * view.k; applyView();
+}
+function centerOn(id) {
+  const pos = layout()[id]; if (!pos) return;
+  view.x = svg.clientWidth * .3 - pos.x * view.k; view.y = svg.clientHeight / 2 - pos.y * view.k; applyView();
+}
+// pan & zoom
+let drag = null;
+svg.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; svg.setPointerCapture(e.pointerId); });
+svg.addEventListener("pointermove", e => { if (!drag) return; view.x = drag.vx + e.clientX - drag.x; view.y = drag.vy + e.clientY - drag.y; applyView(); });
+svg.addEventListener("pointerup", () => drag = null);
+svg.addEventListener("wheel", e => {
+  e.preventDefault(); const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const k2 = Math.min(2.2, Math.max(.3, view.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+  view.x = mx - (mx - view.x) * k2 / view.k; view.y = my - (my - view.y) * k2 / view.k; view.k = k2; applyView();
+}, { passive: false });
+
+// ---------- detail panel
+function showDetail(id) {
+  const n = byId[id], d = $("#detail"), p = pathTo(id);
+  const crumb = p.slice(0, -1).map(x => `<a data-go="${x}">${esc(trunc(byId[x].title, 28))}</a>`).join(" › ");
+  const who = n.agent && TEAM[n.agent] ? `<span class="pill">Phụ trách: ${esc(TEAM[n.agent].name)} – ${esc(TEAM[n.agent].role)}</span>` : "";
+  const links = (n.links || []).length ? `<div class="links"><b>Nguồn</b><ul>${n.links.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join("")}</ul></div>` : "";
+  const kids = (n.children || []).length ? `<div class="kids">${n.children.map(c => `<button type="button" data-go="${c.id}">${esc(trunc(c.title, 40))}</button>`).join("")}</div>` : "";
+  d.innerHTML = `<div class="crumb">${crumb || "&nbsp;"}</div><h3>${esc(n.title)}</h3>
+    <div class="meta"><span class="pill kind" style="background:${kcol(n.kind)}">${klabel(n.kind)}</span>${who}${(n.children||[]).length ? `<span class="pill">${n.children.length} nhánh con</span>` : ""}</div>
+    <div class="body">${n.html || "<p class='muted'>Chọn một nhánh con để xem chi tiết.</p>"}</div>${kids}${links}`;
+  d.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => { const t = b.dataset.go; pathTo(t).forEach(x => open.add(x)); onNode(t, false); centerOn(t); }));
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------- search & buttons
+$("#q").addEventListener("input", e => {
+  const q = e.target.value.trim().toLowerCase(); matches = new Set();
+  if (q.length >= 2) Object.values(byId).forEach(n => {
+    if ((n.title + " " + (n.html || "")).toLowerCase().includes(q)) { matches.add(n.id); pathTo(n.id).slice(0, -1).forEach(x => open.add(x)); }
+  });
+  render(); if (matches.size) fit();
+});
+$("#expandAll").onclick = () => { Object.keys(byId).forEach(k => open.add(k)); render(); fit(); };
+$("#collapseAll").onclick = () => { open.clear(); open.add(DATA.tree.id); DATA.tree.children.forEach(c => open.add(c.id)); render(); fit(); };
+$("#fit").onclick = fit;
+
+// ---------- office scene (minh họa nguyên bản, vẽ bằng SVG)
+const scene = $("#scene");
+function drawScene() {
+  scene.innerHTML = "";
+  el("rect", { x: 0, y: 0, width: 1100, height: 210, fill: css("--wall") }, scene);
+  el("rect", { x: 0, y: 210, width: 1100, height: 90, fill: css("--floor") }, scene);
+  // cửa sổ: lưới truyền tải ngoài trời
+  const win = el("g", {}, scene);
+  el("rect", { x: 880, y: 24, width: 200, height: 92, rx: 6, fill: css("--panel"), stroke: css("--line"), "stroke-width": 3 }, win);
+  [[925, 108], [1010, 108]].forEach(([x, b]) => {
+    el("path", { d: `M${x - 16},${b} L${x},${b - 64} L${x + 16},${b} M${x - 11},${b - 22} L${x + 11},${b - 22} M${x - 6},${b - 42} L${x + 6},${b - 42} M${x - 22},${b - 50} L${x + 22},${b - 50}`, stroke: css("--muted"), "stroke-width": 1.6, fill: "none" }, win);
+  });
+  el("path", { d: "M885,62 Q967,78 1075,62", stroke: css("--muted"), "stroke-width": 1, fill: "none" }, win);
+  el("path", { d: "M885,58 Q967,74 1075,58", stroke: css("--muted"), "stroke-width": 1, fill: "none" }, win);
+  // bảng trắng với cây mini
+  const wb = el("g", {}, scene);
+  el("rect", { x: 30, y: 26, width: 170, height: 104, rx: 6, fill: css("--panel"), stroke: css("--line"), "stroke-width": 3 }, wb);
+  const tx = (x, y, s, fs = 11, w = 600, fill = css("--ink")) => { const t = el("text", { x, y, "font-size": fs, "font-weight": w, fill, "font-family": "Be Vietnam Pro, sans-serif" }, scene); t.textContent = s; return t; };
+  tx(42, 44, "Lộ trình nghiên cứu", 11, 700);
+  const pts = [[50, 86], [96, 62], [96, 86], [96, 110], [148, 54], [148, 70], [148, 100], [148, 118]];
+  [[0, 1], [0, 2], [0, 3], [1, 4], [1, 5], [3, 6], [3, 7]].forEach(([a, b]) => el("path", { d: `M${pts[a][0]},${pts[a][1]} C${(pts[a][0] + pts[b][0]) / 2},${pts[a][1]} ${(pts[a][0] + pts[b][0]) / 2},${pts[b][1]} ${pts[b][0]},${pts[b][1]}`, stroke: css("--teal"), fill: "none", "stroke-width": 1.4 }, wb));
+  pts.forEach(([x, y], i) => el("circle", { cx: x, cy: y, r: i ? 3.5 : 5, fill: i ? css("--teal") : css("--accent") }, wb));
+  // người
+  const staff = DATA.team.filter(p => p.key !== "director");
+  const boss = DATA.team.find(p => p.key === "director");
+  drawPerson(boss, 230, 250, true);
+  staff.forEach((p, i) => drawPerson(p, 320 + i * 108, 250, false));
+}
+function hairPath(style, cx, cy) {
+  switch (style) {
+    case "bun": return `M${cx - 15},${cy - 2} Q${cx - 16},${cy - 19} ${cx},${cy - 19} Q${cx + 16},${cy - 19} ${cx + 15},${cy - 2} Q${cx + 6},${cy - 12} ${cx - 15},${cy - 2} Z M${cx + 6},${cy - 22} a7,7 0 1,0 0.1,0 Z`;
+    case "long": return `M${cx - 16},${cy + 14} Q${cx - 19},${cy - 20} ${cx},${cy - 19} Q${cx + 19},${cy - 20} ${cx + 16},${cy + 14} L${cx + 11},${cy + 14} Q${cx + 12},${cy - 6} ${cx},${cy - 9} Q${cx - 12},${cy - 6} ${cx - 11},${cy + 14} Z`;
+    case "bob": return `M${cx - 16},${cy + 6} Q${cx - 18},${cy - 20} ${cx},${cy - 19} Q${cx + 18},${cy - 20} ${cx + 16},${cy + 6} L${cx + 12},${cy + 6} Q${cx + 10},${cy - 9} ${cx},${cy - 10} Q${cx - 10},${cy - 9} ${cx - 12},${cy + 6} Z`;
+    case "buzz": return `M${cx - 14},${cy - 4} Q${cx - 14},${cy - 17} ${cx},${cy - 17} Q${cx + 14},${cy - 17} ${cx + 14},${cy - 4} Q${cx},${cy - 10} ${cx - 14},${cy - 4} Z`;
+    case "side": return `M${cx - 15},${cy - 1} Q${cx - 16},${cy - 20} ${cx + 2},${cy - 19} Q${cx + 17},${cy - 18} ${cx + 15},${cy - 3} Q${cx + 4},${cy - 15} ${cx - 15},${cy - 1} Z`;
+    default: return `M${cx - 15},${cy - 2} Q${cx - 15},${cy - 19} ${cx},${cy - 19} Q${cx + 15},${cy - 19} ${cx + 15},${cy - 2} Q${cx + 2},${cy - 12} ${cx - 15},${cy - 2} Z`;
+  }
+}
+function drawPerson(p, x, floor, standing) {
+  const L = p.look, on = agentFilter === p.key;
+  const g0 = el("g", { tabindex: 0, role: "button", "aria-label": `${p.name} – ${p.role}`, style: "cursor:pointer" }, scene);
+  el("title", {}, g0).textContent = `${p.name} – ${p.role}\nĐang làm: ${p.task}`;
+  if (on) el("ellipse", { cx: x, cy: floor + 6, rx: 52, ry: 9, fill: css("--accent"), opacity: .25 }, g0);
+  if (standing) {
+    const body = el("g", { class: "typing" }, g0);
+    el("rect", { x: x - 9, y: floor - 46, width: 7, height: 46, rx: 3, fill: css("--ink") }, body);
+    el("rect", { x: x + 2, y: floor - 46, width: 7, height: 46, rx: 3, fill: css("--ink") }, body);
+    el("rect", { x: x - 17, y: floor - 104, width: 34, height: 62, rx: 12, fill: L.shirt }, body);
+    el("path", { d: `M${x - 14},${floor - 94} L${x - 46},${floor - 128}`, stroke: L.shirt, "stroke-width": 8, "stroke-linecap": "round" }, body);
+    el("path", { d: `M${x - 46},${floor - 128} L${x - 60},${floor - 142}`, stroke: css("--accent"), "stroke-width": 2.5, "stroke-linecap": "round" }, body);
+    el("circle", { cx: x - 46, cy: floor - 128, r: 4.5, fill: L.skin }, body);
+    head(body, x, floor - 120, L);
+    const t = el("text", { x, y: floor + 24, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: css("--ink") }, g0); t.textContent = `${p.name} · Trưởng phòng`;
+  } else {
+    // ghế, người ngồi, bàn, màn hình
+    el("rect", { x: x - 20, y: floor - 70, width: 40, height: 50, rx: 8, fill: css("--muted"), opacity: .35 }, g0);
+    const body = el("g", { class: "typing", style: `animation-delay:${(x % 7) / 10}s` }, g0);
+    el("rect", { x: x - 16, y: floor - 78, width: 32, height: 44, rx: 11, fill: L.shirt }, body);
+    head(body, x, floor - 92, L);
+    el("rect", { x: x - 46, y: floor - 34, width: 92, height: 8, rx: 2, fill: css("--desk") }, g0);
+    el("rect", { x: x - 40, y: floor - 26, width: 5, height: 26, fill: css("--desk") }, g0);
+    el("rect", { x: x + 35, y: floor - 26, width: 5, height: 26, fill: css("--desk") }, g0);
+    el("rect", { x: x - 30, y: floor - 70, width: 60, height: 36, rx: 3, fill: css("--ink") }, g0);
+    const sc = el("g", { class: "screen" }, g0);
+    el("rect", { x: x - 27, y: floor - 67, width: 54, height: 28, rx: 2, fill: css("--teal"), opacity: .9 }, sc);
+    el("polyline", { points: `${x - 23},${floor - 45} ${x - 14},${floor - 52} ${x - 6},${floor - 48} ${x + 3},${floor - 60} ${x + 12},${floor - 54} ${x + 22},${floor - 62}`, fill: "none", stroke: css("--panel"), "stroke-width": 1.6 }, sc);
+    el("rect", { x: x - 4, y: floor - 34, width: 8, height: 1, fill: css("--ink") }, g0);
+    const nm = el("text", { x, y: floor + 20, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: css("--ink") }, g0); nm.textContent = p.name;
+  }
+  // bong bóng "đang làm việc"
+  const by = standing ? floor - 170 : floor - 138, bx = standing ? x + 8 : x - 22;
+  el("rect", { x: bx, y: by, width: 44, height: 20, rx: 10, fill: css("--panel"), stroke: css("--line") }, g0);
+  [0, 1, 2].forEach(i => el("circle", { class: "dot", cx: bx + 12 + i * 10, cy: by + 10, r: 2.6, fill: css("--accent") }, g0));
+  g0.addEventListener("click", () => selectAgent(p.key));
+  g0.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectAgent(p.key); } });
+}
+function head(parentG, cx, cy, L) {
+  el("circle", { cx, cy, r: 15, fill: L.skin }, parentG);
+  el("path", { d: hairPath(L.style, cx, cy), fill: L.hair }, parentG);
+  el("circle", { cx: cx - 5, cy: cy + 2, r: 1.6, fill: "#1b1b1b" }, parentG);
+  el("circle", { cx: cx + 5, cy: cy + 2, r: 1.6, fill: "#1b1b1b" }, parentG);
+  el("path", { d: `M${cx - 4},${cy + 8} Q${cx},${cy + 11} ${cx + 4},${cy + 8}`, stroke: "#7a3b2e", "stroke-width": 1.3, fill: "none" }, parentG);
+  if (L.glasses) { el("circle", { cx: cx - 5, cy: cy + 2, r: 4.2, fill: "none", stroke: "#222", "stroke-width": 1.2 }, parentG); el("circle", { cx: cx + 5, cy: cy + 2, r: 4.2, fill: "none", stroke: "#222", "stroke-width": 1.2 }, parentG); el("path", { d: `M${cx - 1},${cy + 2} L${cx + 1},${cy + 2}`, stroke: "#222", "stroke-width": 1.2 }, parentG); }
+}
+function drawCards() {
+  const c = $("#cards"); c.innerHTML = "";
+  DATA.team.forEach(p => {
+    const d = document.createElement("div"); d.className = "card" + (agentFilter === p.key ? " on" : ""); d.tabIndex = 0; d.setAttribute("role", "button");
+    d.innerHTML = `<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="16" fill="${p.look.shirt}"/><circle cx="17" cy="15" r="8" fill="${p.look.skin}"/><path d="${hairPath(p.look.style, 0, 0)}" transform="translate(17,15) scale(.533)" fill="${p.look.hair}"/></svg>
+      <div><b>${esc(p.name)}</b><small>${esc(p.role)}</small><div class="task">Đang làm: ${esc(p.task)}</div></div>`;
+    d.addEventListener("click", () => selectAgent(p.key));
+    d.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectAgent(p.key); } });
+    c.appendChild(d);
+  });
+}
+function selectAgent(key) {
+  agentFilter = agentFilter === key ? null : key;
+  if (agentFilter) Object.values(byId).forEach(n => { if (n.agent === key) pathTo(n.id).slice(0, -1).forEach(x => open.add(x)); });
+  drawScene(); drawCards();
+  const nid = "ns-" + key; if (byId[nid]) { pathTo(nid).forEach(x => open.add(x)); selected = nid; showDetail(nid); }
+  render(); fit();
+}
+
+// ---------- khởi động
+drawScene(); drawCards(); render();
+const start = (location.hash || "").slice(1);
+if (start && byId[start]) { pathTo(start).forEach(x => open.add(x)); onNode(start, false); } else { selected = DATA.tree.id; showDetail(selected); render(); }
+requestAnimationFrame(fit);
+window.addEventListener("resize", fit);
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { drawScene(); render(); });
+new MutationObserver(() => { drawScene(); render(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>
+</body>
+</html>

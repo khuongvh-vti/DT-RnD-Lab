@@ -55,9 +55,9 @@ rag:
   top_k: 8
 
 project:
-  name: "Transformer DT + Substation DT 110 kV – MVP (2 luồng song song)"
-  deadline: "2027-03-31"     # khách hàng cần triển khai trong Q1/2027
-  current_phase: "Sprint 0 – Chốt yêu cầu & nền tảng"
+  name: "Nghiên cứu Digital Twin ngành điện – Transformer DT & Substation DT"
+  deadline: "2027-05-30"     # hết GĐ4 – go/no-go sản phẩm (lộ trình nghiên cứu)
+  current_phase: "GĐ1 – Nền tảng tri thức (11/11 – 20/12/2026)"
 
 git:
   auto_commit: true

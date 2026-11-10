@@ -8,6 +8,7 @@
   python3 dtlab.py ask "câu hỏi"          # hỏi nhanh, Trưởng phòng định tuyến tới chuyên viên
   python3 dtlab.py thermal --load 1.2 --ambient 35   # thử mô hình nhiệt IEC 60076-7
   python3 dtlab.py scl path/to/station.scd   # dựng khung Substation DT từ file SCD (IEC 61850-6)
+  python3 dtlab.py serve                  # mở trang sơ đồ cây tại http://localhost:8765
   python3 dtlab.py free-models            # liệt kê model ':free' hiện có trên OpenRouter
   python3 dtlab.py dga --h2 100 --ch4 120 --c2h2 1 --c2h4 50 --c2h6 65
 """
@@ -69,6 +70,8 @@ def main():
     t.add_argument("--hours", type=float, default=8); t.add_argument("--cooling", default="ONAF")
     sc = sub.add_parser("scl"); sc.add_argument("path")
     sub.add_parser("free-models")
+    sub.add_parser("site")
+    sv = sub.add_parser("serve"); sv.add_argument("--port", type=int, default=8765)
     d = sub.add_parser("dga")
     for g in ("h2", "ch4", "c2h2", "c2h4", "c2h6"):
         d.add_argument(f"--{g}", type=float, required=True)
@@ -119,6 +122,12 @@ def main():
               f"tổn thất tuổi thọ ≈ {last['loss_of_life_h']:.1f} h")
         print(f"Tải xác lập tối đa để θh ≤ 120 °C: {th.max_load_for_hotspot(120, args.ambient, p):.2f} pu")
         print("Lưu ý: tham số mặc định chỉ để thử – cần Δθor, Δθhr từ heat-run test của máy thật.")
+    elif args.cmd == "site":
+        from lab.site import build
+        print("Đã dựng:", build())
+    elif args.cmd == "serve":
+        from lab.site import serve
+        serve(args.port)
     elif args.cmd == "free-models":
         # Liệt kê model miễn phí hiện có trên OpenRouter để cập nhật config (danh mục free thay đổi thường xuyên)
         import json, urllib.request

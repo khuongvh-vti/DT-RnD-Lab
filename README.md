@@ -1,7 +1,7 @@
 # DT-RnD-Lab – Phòng R&D Digital Twin ngành điện (VTICorp)
 
 Phòng nghiên cứu gồm 8 AI agent chạy **hoàn toàn local** trên máy anh bằng **Qwen + Ollama**. Mục tiêu hiện tại là
-MVP 2 luồng song song **Transformer DT + Substation DT 110 kV** triển khai tại khách hàng trong **Q1/2027**.
+**nghiên cứu để hiểu sâu hệ thống Digital Twin ngành điện** (Transformer DT và Substation DT) theo lộ trình 5 giai đoạn.
 
 ## Nhân sự (config/team.yaml)
 | Agent | Vai trò |
@@ -35,6 +35,12 @@ python3 dtlab.py scl tests/data/sample.scd                 # khung Substation DT
 python3 dtlab.py dga --h2 100 --ch4 120 --c2h2 1 --c2h4 50 --c2h6 65
 ```
 Chạy tự động 8:00 thứ Hai: xem hướng dẫn trong `scripts/com.vticorp.dtlab.weekly.plist`.
+
+## Trang sơ đồ cây
+```bash
+python3 dtlab.py serve      # mở http://localhost:8765 – cây tri thức, bấm nút để xem chi tiết, có phòng làm việc minh họa
+```
+Nội dung tri thức nằm trong `lab/site_content.py`; mọi file `.md` trong `reports/` tự thành nhánh của cây.
 
 ## Chế độ hybrid – ưu tiên model MIỄN PHÍ
 Model local (`qwen3.5:9b`) có giới hạn suy luận. Vì vậy các vai trò cần suy luận sâu (`director`, `physics`, `standards`,

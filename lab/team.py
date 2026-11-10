@@ -41,7 +41,7 @@ class Member:
         prompt = (f"NHIỆM VỤ TUẦN: {task.title}\nCÂU HỎI: {task.question}\n{context_note}\n\n"
                   f"TÀI LIỆU THAM KHẢO:\n{format_context(hits)}\n\n"
                   "Viết báo cáo mảng của bạn (markdown, ≤ 600 từ) gồm: 1) Kết luận chính; 2) Phân tích kỹ thuật "
-                  "có trích [S#]; 3) Đề xuất áp dụng cho MVP Q1/2027; 4) Câu hỏi mở / dữ liệu cần bổ sung.")
+                  "có trích [S#]; 3) Ý nghĩa cho VTI (giải pháp, cạnh tranh, khả thi tại VN); 4) Câu hỏi mở / dữ liệu cần bổ sung.")
         sens = is_sensitive([h.source for h in hits], self.sensitive_paths)
         body = self.llm.chat(self.system, prompt, role=self.key, sensitive=sens)
         engine = getattr(self.llm, "last_engine", "local")
