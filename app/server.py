@@ -155,14 +155,8 @@ def job_ask(log, question, agent):
     s, t = load_cfg()
     boss, _ = director(s, t)
     log(f"Câu hỏi gửi tới: {agent or 'Trưởng phòng định tuyến'}")
-    if agent and agent in boss.members:
-        from lab.team import Task
-        r = boss.members[agent].work(Task(agent, "Câu hỏi của anh Khương", question))
-        answer = r.body + ("\n\n## Nguồn trong kho\n" + "\n".join(f"- {x}" for x in r.sources) if r.sources else "")
-        engine = r.engine
-    else:
-        answer = boss.ask(question)
-        engine = getattr(boss.llm, "last_engine", "local")
+    answer = boss.ask(question, members=[agent] if agent else None)
+    engine = getattr(boss.llm, "last_engine", "local")
     item = {"time": dt.datetime.now().strftime("%d/%m %H:%M"), "agent": agent or "director", "q": question,
             "a": answer, "a_html": site.md_to_html(answer), "engine": engine}
     chat_append(item)
@@ -375,6 +369,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     DATA.mkdir(exist_ok=True)
+    start_job("ingest", job_ingest)  # tự nạp tài liệu mới trong library/ mỗi lần server khởi động
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(f"DT-RnD-Lab đang chạy: http://localhost:{PORT}")
     srv.serve_forever()

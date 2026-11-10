@@ -116,14 +116,36 @@ class Director:
         today = dt.date.today().isoformat()
         return f"# Báo cáo tuần Phòng R&D Digital Twin – {today}\n\n{text}\n"
 
-    # Hỏi nhanh: Trưởng phòng định tuyến tới chuyên viên phù hợp
-    def ask(self, question: str) -> str:
+    # Hỏi nhanh: chọn chuyên viên phù hợp, tra kho 1 lần, trả lời THẲNG câu hỏi (không theo khuôn báo cáo tuần)
+    def route(self, question: str) -> list[str]:
         keys = ", ".join(f"{k} ({m.spec['scope']})" for k, m in self.members.items())
         try:
-            route = self.llm.chat_json(self.system, role="director", user=f"Câu hỏi: {question}\nChọn 1–2 chuyên viên phù hợp nhất "
-                                       f"trong: {keys}. Trả JSON {{\"members\":[\"key\"]}}")
-            chosen = [k for k in route.get("members", []) if k in self.members][:2] or ["standards"]
+            r = self.llm.chat_json(self.system, role="director", user=f"Câu hỏi: {question}\nChọn 1–2 chuyên viên phù hợp "
+                                   f"nhất trong: {keys}. Trả JSON {{\"members\":[\"key\"]}}")
+            return [k for k in r.get("members", []) if k in self.members][:2] or ["standards"]
         except Exception:
-            chosen = ["standards"]
-        parts = [self.members[k].work(Task(k, "Câu hỏi của anh Khương", question)) for k in chosen]
-        return self.synthesize(parts)
+            return ["standards"]
+
+    def ask(self, question: str, members: list[str] | None = None, k: int | None = None) -> str:
+        chosen = [m for m in (members or []) if m in self.members] or self.route(question)
+        hits = self.kb.search(question, k=k or self.settings["rag"]["top_k"] + 2)
+        experts = "\n".join(f"- {self.members[c].spec['name']}: {self.members[c].spec['scope']}" for c in chosen)
+        if hits:
+            ctx = format_context(hits)
+        else:
+            ctx = "(KHO TÀI LIỆU KHÔNG CÓ ĐOẠN NÀO LIÊN QUAN)"
+        prompt = (f"CÂU HỎI CỦA ANH KHƯƠNG: {question}\n\nChuyên môn được giao trả lời:\n{experts}\n\n"
+                  f"TÀI LIỆU THAM KHẢO (chỉ dùng các đoạn này làm căn cứ):\n{ctx}\n\n"
+                  "YÊU CẦU TRẢ LỜI:\n"
+                  "- Trả lời TRỰC TIẾP đúng câu hỏi. KHÔNG viết dạng báo cáo tuần, KHÔNG chào hỏi, KHÔNG tự giới thiệu.\n"
+                  "- Cấu trúc: '## Trả lời ngắn' (3–6 dòng) → '## Chi tiết' (dùng bảng nếu là so sánh; có số liệu, "
+                  "tên tiêu chuẩn, phiên bản) → '## Độ tin cậy & nguồn' → '## Tài liệu còn thiếu' (nếu có).\n"
+                  "- Mọi khẳng định kỹ thuật phải kèm [S#] tương ứng. Điều không có trong tài liệu: ghi 'CẦN KIỂM CHỨNG', "
+                  "không bịa số liệu, tên sản phẩm, phiên bản tiêu chuẩn.\n"
+                  "- Nếu tài liệu không đủ để trả lời, nói rõ và liệt kê cụ thể tài liệu cần anh Khương upload.")
+        sens = is_sensitive([h.source for h in hits], self.members[chosen[0]].sensitive_paths)
+        body = self.llm.chat(self.system, prompt, role=chosen[0], sensitive=sens)
+        if hits:
+            body += "\n\n## Nguồn trong kho\n" + "\n".join(
+                f"- [S{i}] {Path(h.source).name} – tr.{h.page}" for i, h in enumerate(hits, 1))
+        return body

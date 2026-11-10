@@ -88,9 +88,16 @@ class _Doc:
     def table(self, head: list[str], rows: list[list[str]]) -> None:
         n = max(len(head), *(len(r) for r in rows)) if rows else len(head)
         # độ rộng cột theo độ dài nội dung (tối thiểu 8%)
-        lens = [max([len(head[i]) if i < len(head) else 0] + [len(r[i]) if i < len(r) else 0 for r in rows]) for i in range(n)]
-        lens = [min(max(x, 6), 60) for x in lens]
-        widths = [int(TEXT_W * x / sum(lens)) for x in lens]
+        clean = lambda c: re.sub(r"[*`]|\[([^\]]+)\]\([^)]+\)", r"\1", c)
+        cells = lambda i: [clean(r[i]) for r in [head] + rows if i < len(r)]
+        # bề rộng tối thiểu = từ dài nhất (≈110 twip/ký tự ở cỡ 9,5 pt + lề ô) để không ngắt giữa chữ
+        mins = [min(max([len(w) for c in cells(i) for w in c.split()] or [3]) * 110 + 240, TEXT_W // 3) for i in range(n)]
+        want = [max(min(sum(len(c) for c in cells(i)) / max(1, len(cells(i))), 80), 4) for i in range(n)]
+        want = [w ** 0.7 for w in want]  # cân bằng hơn giữa cột dài/ngắn
+        spare = max(0, TEXT_W - sum(mins))
+        widths = [int(mins[i] + spare * want[i] / sum(want)) for i in range(n)]
+        if sum(mins) > TEXT_W:  # quá nhiều cột: chia tỷ lệ
+            widths = [int(TEXT_W * m / sum(mins)) for m in mins]
         b = '<w:{0} w:val="single" w:sz="4" w:space="0" w:color="C9C6E3"/>'
         borders = "".join(b.format(s) for s in ("top", "left", "bottom", "right", "insideH", "insideV"))
         x = [f'<w:tbl><w:tblPr><w:tblW w:w="{TEXT_W}" w:type="dxa"/><w:tblBorders>{borders}</w:tblBorders>'

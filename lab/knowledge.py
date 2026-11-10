@@ -40,8 +40,14 @@ def chunk(text: str, size: int, overlap: int) -> list[str]:
     return [c for c in out if len(c) > 80]
 
 
+_STOP = set("và của cho các những là có được với trong về này đó thì mà khi để theo từ một như hay hoặc nào gì "
+             "không đã đang sẽ rất cũng tại trên dưới ra vào so sánh hệ thống nào phù hợp the of and to in for a an is "
+             "on with by as at or be are from that this".split())
+
+
 def _tokens(s: str) -> list[str]:
-    return re.findall(r"[\wÀ-ỹ\-\.]+", s.lower())
+    toks = (t.strip(".-") for t in re.findall(r"[\wÀ-ỹ\-\.]+", s.lower()))
+    return [t for t in toks if t and t not in _STOP]
 
 
 class KnowledgeBase:
@@ -64,9 +70,16 @@ class KnowledgeBase:
             sha = hashlib.sha1(path.read_bytes()).hexdigest()
             row = self.db.execute("SELECT sha FROM docs WHERE path=?", (str(path),)).fetchone()
             if row and row[0] == sha:
-                continue
+                # đã nạp; chỉ nạp lại nếu trước đó thiếu embedding mà nay đã có model embedding
+                missing = self.db.execute("SELECT COUNT(*) FROM chunks WHERE path=? AND vec IS NULL", (str(path),)).fetchone()[0]
+                if not (missing and self.llm is not None and self._embed(["ping"])[0] is not None):
+                    continue
             self.db.execute("DELETE FROM chunks WHERE path=?", (str(path),))
-            pieces = [(pg, c) for pg, t in _read_file(path) for c in chunk(t, self.size, self.overlap)]
+            pages = _read_file(path)
+            head = next((ln[2:].strip() for _, t in pages[:1] for ln in t.splitlines() if ln.startswith("# ")), path.stem)
+            # gắn tiêu đề tài liệu vào mỗi đoạn để tìm kiếm & trích dẫn không mất ngữ cảnh (đoạn giữa file)
+            pieces = [(pg, c if c.lstrip().startswith("# ") else f"[{head}]\n{c}")
+                      for pg, t in pages for c in chunk(t, self.size, self.overlap)]
             vecs = self._embed([c for _, c in pieces])
             for (pg, c), v in zip(pieces, vecs):
                 blob = None if v is None else np.asarray(v, dtype=np.float32).tobytes()
@@ -124,7 +137,25 @@ class KnowledgeBase:
                         (tf[w] + 1.2 * (0.25 + 0.75 * len(d) / avg)) for w in q if w in tf)
                 scored.append((s, p, pg, t))
         scored.sort(key=lambda x: -x[0])
-        return [Hit(p, pg, t, s) for s, p, pg, t in scored[:k] if s > 0]
+        top = [x for x in scored[:k] if x[0] > 0]
+        # Bảo đảm bao phủ thực thể: câu hỏi so sánh "Siemens và Hitachi" phải có đoạn cho CẢ HAI tên riêng hiếm
+        toks = [w for w in dict.fromkeys(_tokens(query)) if len(w) > 2]
+        low = {w: sum(1 for r in rows if w in _tokens(r[2])) for w in toks}
+        title = lambda t: _tokens(t.lstrip().split("\n", 1)[0])  # dòng đầu = [tiêu đề tài liệu]
+        for w in toks:
+            if not low[w] or low[w] > 0.3 * len(rows):
+                continue
+            if any(w in title(x[3]) for x in top):
+                continue
+            best = next((x for x in scored if w in title(x[3])), None)
+            if best is None and any(w in _tokens(x[3]) for x in top):
+                continue
+            best = best or next((x for x in scored if w in _tokens(x[3])), None)
+            if best is not None:
+                if len(top) >= k:
+                    top.pop()
+                top.append(best)
+        return [Hit(p, pg, t, s) for s, p, pg, t in top]
 
 
 def format_context(hits: list[Hit]) -> str:

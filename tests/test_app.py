@@ -76,3 +76,26 @@ def test_docx_markdown_features():
     z = zipfile.ZipFile(io.BytesIO(d))
     doc = z.read("word/document.xml").decode()
     assert "<w:tbl>" in doc and "w:numId" in doc and "w:hyperlink" in doc
+
+
+def test_kb_entity_coverage_and_direct_answer():
+    import tempfile
+    import yaml
+    from lab.knowledge import KnowledgeBase
+    from lab.team import Director
+    kb = KnowledgeBase(tempfile.mktemp(suffix=".sqlite"))
+    kb.ingest(str(ROOT / "library"), log=lambda *a: None)
+    files = [h.source for h in kb.search("so sánh kiến trúc DT của Siemens và Hitachi", 10)]
+    assert any("Siemens" in f for f in files) and any("Hitachi" in f for f in files)
+
+    class Fake:
+        last_engine = "fake"
+        def chat_json(self, *a, **k): return {"members": ["benchmark"]}
+        def chat(self, system, user, **k):
+            self.prompt = user
+            return "## Trả lời ngắn\nok [S1]"
+    s = yaml.safe_load((ROOT / "config/settings.yaml").read_text(encoding="utf-8"))
+    t = yaml.safe_load((ROOT / "config/team.yaml").read_text(encoding="utf-8"))
+    f = Fake()
+    out = Director(t, s, f, kb).ask("IEEE C57.143 bản mới nhất?")
+    assert "báo cáo tuần" in f.prompt and "## Nguồn trong kho" in out and "FS02" in out
