@@ -97,7 +97,7 @@ main { padding-top: 18px; padding-bottom: 60px; }
 @keyframes blink { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
 
 /* Buttons & form */
-.btn { font: 600 14px var(--font); padding: 9px 16px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; transition: transform .15s, box-shadow .15s, background .15s; }
+.btn { display: inline-block; text-decoration: none; font: 600 14px var(--font); padding: 9px 16px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; transition: transform .15s, box-shadow .15s, background .15s; }
 .btn:hover { background: #FAFAFF; }
 .btn:active { transform: scale(.97); }
 .btn-primary { background: var(--grad); border: none; color: #fff; box-shadow: 0 6px 16px rgba(91,75,245,.30); }

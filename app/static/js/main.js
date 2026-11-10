@@ -66,14 +66,17 @@ async function today() {
       </div>`).join("")}</div>
 
     <h2 class="section-h">📑 Báo cáo mới nhất</h2>
-    ${last ? `<div class="card click" id="last-rep"><div class="card-head"><h3>${esc(last.title)}</h3><span class="pill">${esc(last.week)}</span></div>
+    ${last ? `<div class="card click" id="last-rep"><div class="card-head"><h3>${esc(last.title)}</h3><div class="row"><span class="pill">${esc(last.week)}</span><a class="btn" id="last-docx" href="/api/report.docx?path=${encodeURIComponent(last.path)}" download>📄 Word</a></div></div>
       <div class="small muted">Cập nhật ${esc(last.mtime)} · bấm để đọc</div></div>` : `<div class="card muted">Chưa có báo cáo. Bấm “Chạy vòng nghiên cứu tuần”.</div>`}
   `);
   drawOffice($("#office"), TEAM, pk => { askAgent = pk.key === "director" ? null : pk.key; location.hash = "ask"; });
   $("#go-ask").onclick = () => (location.hash = "ask");
   $("#go-tree").onclick = () => (location.hash = "tree");
   $("#go-week").onclick = runWeek;
-  if (last) $("#last-rep").onclick = () => (location.hash = "reports:" + encodeURIComponent(last.path));
+  if (last) {
+    $("#last-rep").onclick = () => (location.hash = "reports:" + encodeURIComponent(last.path));
+    $("#last-docx").onclick = e => e.stopPropagation();
+  }
 }
 
 async function runWeek() {
@@ -101,7 +104,7 @@ async function ask() {
   const who = k => TEAM.find(p => p.key === (k || "director")) || TEAM[0];
   page(`
     <div class="card">
-      <div class="card-head"><h3>🤖 Hỏi phòng R&amp;D</h3><button class="btn" id="clear">🧹 Xóa lịch sử</button></div>
+      <div class="card-head"><h3>🤖 Hỏi phòng R&amp;D</h3><div class="row"><a class="btn" href="/api/chat.docx?i=all" download>📄 Xuất tất cả ra Word</a><button class="btn" id="clear">🧹 Xóa lịch sử</button></div></div>
       <div class="agent-picker">${TEAM.map(p => `<button data-k="${p.key}" class="${(askAgent || "director") === p.key ? "on" : ""}">${avatar(p, 26)} ${esc(p.name)}</button>`).join("")}</div>
       <p class="small muted" id="who-hint"></p>
       <textarea id="q" placeholder="Ví dụ: So sánh kiến trúc DT của Hitachi Lumada APM và Siemens Sensformer; cái nào phù hợp lưới 110 kV Việt Nam?"></textarea>
@@ -116,12 +119,13 @@ async function ask() {
     $("#who-hint").textContent = askAgent ? `Hỏi trực tiếp ${p.name} – ${p.role} (tra kho tài liệu + Qwen).` : "Trưởng phòng Minh sẽ trả lời tổng hợp, dựa trên kho tài liệu.";
   };
   hint();
-  const bubble = it => `
+  const bubble = (it, idx) => `
     <div class="msg me">${esc(it.q)}</div>
-    <div class="msg bot"><div class="meta">${avatar(who(it.agent), 22)} <b>${esc(who(it.agent).name)}</b> · ${esc(it.time)} <span class="pill">${esc(it.engine || "local")}</span></div>
+    <div class="msg bot"><div class="meta">${avatar(who(it.agent), 22)} <b>${esc(who(it.agent).name)}</b> · ${esc(it.time)} <span class="pill">${esc(it.engine || "local")}</span>
+      <a class="small" style="margin-left:auto" href="/api/chat.docx?i=${idx}" download>📄 Xuất Word</a></div>
       <div class="md">${it.a_html}</div></div>`;
   const chat = $("#chat");
-  chat.innerHTML = hist.slice().reverse().map(bubble).join("");
+  chat.innerHTML = hist.map((it, i) => bubble(it, i)).reverse().join("");
   view().querySelectorAll(".agent-picker button").forEach(b => b.onclick = () => {
     askAgent = b.dataset.k === "director" ? null : b.dataset.k;
     view().querySelectorAll(".agent-picker button").forEach(x => x.classList.toggle("on", x === b));
@@ -140,7 +144,8 @@ async function ask() {
       const { job } = await post("/api/ask", { question: q, agent: askAgent });
       refreshChips();
       const it = await waitJob(job);
-      pending.outerHTML = bubble(it);
+      pending.outerHTML = bubble(it, hist.length);
+      hist.push(it);
       $("#q").value = "";
     } catch (e) { pending.remove(); toast("Lỗi: " + e.message, true); }
     btn.disabled = false; btn.textContent = "Gửi câu hỏi";
@@ -163,7 +168,9 @@ async function reports(arg) {
   view().querySelectorAll(".list-item").forEach(d => d.onclick = () => (location.hash = "reports:" + encodeURIComponent(d.dataset.p)));
   if (sel) {
     const r = await get("/api/report?path=" + encodeURIComponent(sel));
-    $("#rep").innerHTML = `<div class="card-head"><h2 style="margin:0">${esc(r.title)}</h2><span class="small muted">${esc(r.path)}</span></div>${r.html}`;
+    $("#rep").innerHTML = `<div class="card-head"><h2 style="margin:0">${esc(r.title)}</h2>
+      <a class="btn btn-primary" href="/api/report.docx?path=${encodeURIComponent(r.path)}" download>📄 Xuất Word</a></div>
+      <div class="small muted" style="margin-bottom:8px">${esc(r.path)}</div>${r.html}`;
   }
 }
 

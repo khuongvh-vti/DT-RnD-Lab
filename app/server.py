@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 import yaml  # noqa: E402
 
-from lab import site  # noqa: E402
+from lab import docx_export, site  # noqa: E402
 from lab import site_content as C  # noqa: E402
 from lab.physics import dga, scl, transformer_thermal as th  # noqa: E402
 
@@ -127,6 +127,16 @@ def safe_path(rel: str, base: Path) -> Path:
     return p
 
 
+def docx_name(*parts: str) -> str:
+    return "_".join(re.sub(r"[\\/:*?\"<>|\s]+", "_", x).strip("_") for x in parts if x) + ".docx"
+
+
+def chat_md(it: dict) -> str:
+    who = {p["key"]: f"{p['name']} – {p['role']}" for p in C.TEAM}.get(it.get("agent") or "director", it.get("agent"))
+    return (f"## Câu hỏi ({it.get('time', '')})\n\n> {it['q']}\n\n"
+            f"### Trả lời của {who} · engine: {it.get('engine', 'local')}\n\n{it['a']}\n\n---")
+
+
 def chat_history():
     try:
         return json.loads(CHAT.read_text(encoding="utf-8"))
@@ -199,6 +209,16 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_docx(self, data: bytes, filename: str):
+        self.send_response(200)
+        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        ascii_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", filename.encode("ascii", "ignore").decode()) or "bao_cao.docx"
+        self.send_header("Content-Disposition",
+                         f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{urllib.parse.quote(filename)}")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def body(self) -> bytes:
         n = int(self.headers.get("Content-Length", 0) or 0)
         if n > MAX_BODY:
@@ -243,6 +263,17 @@ class Handler(BaseHTTPRequestHandler):
                 title = next((l[2:].strip() for l in text.splitlines() if l.startswith("# ")), p.stem)
                 body = re.sub(r"^# .*\n?", "", text, count=1, flags=re.M).replace("\n## ", "\n### ")
                 return self.send_json({"title": title, "html": site.md_to_html(body), "path": q.get("path")})
+            if u.path == "/api/report.docx":
+                p = safe_path(q.get("path", ""), REPORTS)
+                md = p.read_text(encoding="utf-8")
+                sub = f"{p.parent.name} · Xuất ngày {dt.date.today().strftime('%d/%m/%Y')} · Phòng R&D Digital Twin – VTICorp"
+                return self.send_docx(docx_export.markdown_to_docx(md, subtitle=sub), docx_name(p.parent.name, p.stem))
+            if u.path == "/api/chat.docx":
+                h = chat_history()
+                items = h if q.get("i") in (None, "", "all") else [h[int(q["i"])]]
+                md = "\n\n".join(chat_md(it) for it in items)
+                title = "Hỏi đáp phòng R&D Digital Twin" if len(items) > 1 else f"Hỏi đáp: {items[0]['q'][:80]}"
+                return self.send_docx(docx_export.markdown_to_docx(md, title=title), docx_name("HoiDap", dt.datetime.now().strftime("%Y%m%d_%H%M")))
             if u.path == "/api/library":
                 return self.send_json(self.library())
             if u.path == "/api/chat":

@@ -1,5 +1,6 @@
 """Kiểm tra nhanh API của ứng dụng web (không cần Ollama)."""
 import json
+import urllib.parse
 import sys
 import threading
 import urllib.request
@@ -7,6 +8,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "app"))
 import server  # noqa: E402
 
@@ -53,3 +55,24 @@ def test_tools():
 
 def test_upload_rejects_bad_folder():
     assert call("/api/upload?folder=../x&name=a.pdf", b"x", raw=True)[0] == 400
+
+
+def test_report_docx_export():
+    import io
+    import zipfile
+    rep = json.loads(call("/api/reports")[1])[0]["path"]
+    code, data = call("/api/report.docx?path=" + urllib.parse.quote(rep))
+    assert code == 200 and data[:2] == b"PK"
+    z = zipfile.ZipFile(io.BytesIO(data))
+    assert "word/document.xml" in z.namelist()
+    assert "Digital Twin" in z.read("word/document.xml").decode()
+
+
+def test_docx_markdown_features():
+    from lab.docx_export import markdown_to_docx
+    import io
+    import zipfile
+    d = markdown_to_docx("# T\n## H\n1. a\n2. b\n- x\n| a | b |\n|---|---|\n| 1 | 2 |\n[l](https://x.y)")
+    z = zipfile.ZipFile(io.BytesIO(d))
+    doc = z.read("word/document.xml").decode()
+    assert "<w:tbl>" in doc and "w:numId" in doc and "w:hyperlink" in doc
