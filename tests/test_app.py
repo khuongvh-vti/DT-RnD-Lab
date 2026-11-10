@@ -90,7 +90,7 @@ def test_kb_entity_coverage_and_direct_answer():
 
     class Fake:
         last_engine = "fake"
-        def chat_json(self, *a, **k): return {"members": ["benchmark"]}
+        def chat_json(self, *a, **k): return {"members": ["benchmark"], "keywords_en": "monitoring guide"}
         def chat(self, system, user, **k):
             self.prompt = user
             return "## Trả lời ngắn\nok [S1]"

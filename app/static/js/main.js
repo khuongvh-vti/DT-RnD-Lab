@@ -207,7 +207,7 @@ function tools() {
     <div class="card">
       <div class="card-head"><h3>🌡 Mô hình nhiệt máy biến áp – IEC 60076-7</h3><span class="pill">Hot-spot & Loss of life</span></div>
       <div class="form-grid">
-        <label class="f">Làm mát<select id="cool">${["ONAN", "ONAF", "OFAF", "ODAF"].map(c => `<option ${c === "ONAF" ? "selected" : ""}>${c}</option>`).join("")}</select></label>
+        <label class="f">Làm mát<select id="cool">${["ONAN", "ONAF", "OF", "OD"].map(c => `<option ${c === "ONAF" ? "selected" : ""}>${c}</option>`).join("")}</select></label>
         <label class="f">Tải K (pu)<input id="load" type="number" step="0.05" value="1.1"></label>
         <label class="f">Nhiệt độ môi trường θa (°C)<input id="amb" type="number" value="35"></label>
         <label class="f">R = Pk/P0<input id="R" type="number" step="0.5" value="6"></label>
@@ -224,7 +224,8 @@ function tools() {
     <div class="grid g2" style="margin-top:16px">
       <div class="card">
         <div class="card-head"><h3>🧪 Chẩn đoán DGA</h3><span class="pill">Duval T1 · IEC 60599</span></div>
-        <div class="form-grid">${["h2:H₂:100", "ch4:CH₄:120", "c2h2:C₂H₂:1", "c2h4:C₂H₄:50", "c2h6:C₂H₆:65"].map(s => { const [k, l, v] = s.split(":"); return `<label class="f">${l} (ppm)<input id="g-${k}" type="number" value="${v}"></label>`; }).join("")}</div>
+        <div class="form-grid">${["h2:H₂:100", "ch4:CH₄:120", "c2h2:C₂H₂:1", "c2h4:C₂H₄:50", "c2h6:C₂H₆:65", "co:CO:", "co2:CO₂:"].map(s => { const [k, l, v] = s.split(":"); return `<label class="f">${l} (ppm)<input id="g-${k}" type="number" value="${v}" placeholder="tùy chọn"></label>`; }).join("")}
+          <label class="f">OLTC thông dầu với thùng chính<select id="g-oltc"><option value="">Không</option><option value="1">Có</option></select></label></div>
         <button class="btn btn-primary" id="run-dga">Chẩn đoán</button>
         <div id="dga-out" style="margin-top:14px"></div>
       </div>
@@ -256,15 +257,21 @@ function tools() {
 
   $("#run-dga").onclick = async () => {
     const b = {}; ["h2", "ch4", "c2h2", "c2h4", "c2h6"].forEach(k => (b[k] = +$("#g-" + k).value));
+    ["co", "co2"].forEach(k => { const v = $("#g-" + k).value; if (v !== "") b[k] = +v; });
+    b.oltc = $("#g-oltc").value;
     try {
       const r = await post("/api/dga", b);
-      $("#dga-out").innerHTML = `<div class="kv">
+      const ty = r.typical;
+      const tyHtml = ty.status === "normal"
+        ? `<p><span class="pill ok">Mọi khí dưới giá trị điển hình IEC 60599 (Bảng A.2) → DGA bình thường</span> – theo Điều 9 không cần chẩn đoán loại lỗi; kết quả tỷ số bên dưới chỉ để tham khảo.</p>`
+        : `<p><span class="pill warn">Vượt giá trị điển hình:</span> ${ty.above.map(a => `${a.gas} = ${a.value} (> ${a.typical_upper})`).join(", ")} → tính tốc độ tăng khí và chẩn đoán loại lỗi.</p>`;
+      $("#dga-out").innerHTML = tyHtml + (ty.paper_note ? `<p class="small">⚠️ ${esc(ty.paper_note)}</p>` : "") + `<div class="kv">
         <span>Duval Triangle 1</span><b>${esc(r.duval)} – ${esc(r.duval_desc)}</b>
         <span>% CH₄ / C₂H₄ / C₂H₂</span><span>${r.duval_pct.CH4} / ${r.duval_pct.C2H4} / ${r.duval_pct.C2H2}</span>
         <span>IEC 60599 (tỷ số)</span><b>${esc(r.iec60599)} – ${esc(r.iec60599_desc)}</b>
         <span>Tỷ số</span><span>${Object.entries(r.ratios).map(([k, v]) => `${k} = ${v}`).join(" · ")}</span>
         <span>Kết luận</span><span class="pill ${r.agree ? "ok" : "warn"}">${r.agree ? "Hai phương pháp thống nhất" : "Hai phương pháp khác nhau → cần xem xu hướng & lấy mẫu phòng thí nghiệm"}</span></div>
-        <p class="small muted">Lưu ý: DGA online có thể sai lệch ±20–30% so với phòng thí nghiệm (CIGRE TB 783) – nên chẩn đoán theo xu hướng (rate of change), không chỉ một điểm đo.</p>`;
+        <p class="small muted">Lưu ý (CIGRE TB 783): đa số thiết bị DGA online thử nghiệm đạt yêu cầu độ chính xác ±15 % của IEC nhưng một số không đạt; ở nồng độ thấp (&lt; 10 ppm) sai số có thể &gt; 50 % làm chẩn đoán vô nghĩa. Sai số hệ thống cũng làm sai tốc độ tăng khí → kiểm chứng thiết bị bằng mẫu chuẩn gas-in-oil và đối chiếu phòng thí nghiệm. Ngưỡng điển hình dùng cận trên Bảng A.2 – nên thay bằng giá trị điển hình của chính đội máy.</p>`;
     } catch (e) { toast(e.message, true); }
   };
 

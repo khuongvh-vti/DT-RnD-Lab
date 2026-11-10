@@ -326,7 +326,9 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/dga":
                 b = self.jbody()
                 vals = [float(b.get(k, 0)) for k in ("h2", "ch4", "c2h2", "c2h4", "c2h6")]
-                return self.send_json(dga.diagnose(*vals))
+                opt = lambda k: float(b[k]) if b.get(k) not in (None, "") else None
+                return self.send_json(dga.diagnose(*vals, co=opt("co"), co2=opt("co2"),
+                                                   oltc_communicating=bool(b.get("oltc"))))
             if u.path == "/api/scl":
                 tmp = DATA / "upload.scd"
                 DATA.mkdir(exist_ok=True)

@@ -109,53 +109,67 @@ class KnowledgeBase:
         return {"documents": n_docs, "chunks": n_chunks}
 
     # ---------- Search ----------
+    def _tokcache(self, rows):
+        """Token hóa mỗi đoạn một lần (cache theo số đoạn) – kho lớn (tiêu chuẩn hàng nghìn trang) vẫn tìm nhanh."""
+        key = (len(rows), rows[-1][2][:50] if rows else "")
+        if getattr(self, "_tc_key", None) != key:
+            docs = [_tokens(r[2]) for r in rows]
+            sets = [set(d) for d in docs]
+            titles = [set(_tokens(r[2].lstrip().split("\n", 1)[0])) for r in rows]
+            df = Counter(w for st in sets for w in st)
+            self._tc_key, self._tc = key, (docs, sets, titles, df)
+        return self._tc
+
     def search(self, query: str, k: int = 8) -> list[Hit]:
         rows = self.db.execute("SELECT path,page,text,vec FROM chunks").fetchall()
         if not rows:
             return []
+        docs, sets, titles, df = self._tokcache(rows)
         qv = None
         if self.llm is not None and any(r[3] for r in rows):
             try:
                 qv = np.asarray(self.llm.embed([query])[0], dtype=np.float32)
             except Exception:
                 qv = None
-        scored = []
+        scored = []  # (score, idx)
         if qv is not None:
             qn = qv / (np.linalg.norm(qv) + 1e-9)
-            for p, pg, t, v in rows:
-                if v:
-                    vv = np.frombuffer(v, dtype=np.float32)
-                    scored.append((float(qn @ (vv / (np.linalg.norm(vv) + 1e-9))), p, pg, t))
+            for i, r in enumerate(rows):
+                if r[3]:
+                    vv = np.frombuffer(r[3], dtype=np.float32)
+                    scored.append((float(qn @ (vv / (np.linalg.norm(vv) + 1e-9))), i))
         else:  # fallback: BM25 đơn giản
-            docs = [_tokens(r[2]) for r in rows]
-            df = Counter(w for d in docs for w in set(d))
             avg = sum(map(len, docs)) / len(docs)
             q = _tokens(query)
-            for (p, pg, t, _), d in zip(rows, docs):
+            n = len(docs)
+            for i, d in enumerate(docs):
+                if not any(w in sets[i] for w in q):
+                    continue
                 tf = Counter(d)
-                s = sum(math.log(1 + len(docs) / (1 + df[w])) * tf[w] * 2.2 /
+                s = sum(math.log(1 + n / (1 + df[w])) * tf[w] * 2.2 /
                         (tf[w] + 1.2 * (0.25 + 0.75 * len(d) / avg)) for w in q if w in tf)
-                scored.append((s, p, pg, t))
+                scored.append((s, i))
         scored.sort(key=lambda x: -x[0])
         top = [x for x in scored[:k] if x[0] > 0]
         # Bảo đảm bao phủ thực thể: câu hỏi so sánh "Siemens và Hitachi" phải có đoạn cho CẢ HAI tên riêng hiếm
         toks = [w for w in dict.fromkeys(_tokens(query)) if len(w) > 2]
-        low = {w: sum(1 for r in rows if w in _tokens(r[2])) for w in toks}
-        title = lambda t: _tokens(t.lstrip().split("\n", 1)[0])  # dòng đầu = [tiêu đề tài liệu]
         for w in toks:
-            if not low[w] or low[w] > 0.3 * len(rows):
+            if not df.get(w) or df[w] > 0.3 * len(rows):
                 continue
-            if any(w in title(x[3]) for x in top):
+            if any(w in titles[i] for _, i in top):
                 continue
-            best = next((x for x in scored if w in title(x[3])), None)
-            if best is None and any(w in _tokens(x[3]) for x in top):
+            best = next((x for x in scored if w in titles[x[1]]), None)
+            if best is None and any(w in sets[i] for _, i in top):
                 continue
-            best = best or next((x for x in scored if w in _tokens(x[3])), None)
-            if best is not None:
+            best = best or next((x for x in scored if w in sets[x[1]]), None)
+            if best is None:  # đoạn có từ khóa nhưng không được chấm điểm (ví dụ chỉ có embedding)
+                idx = next((i for i in range(len(rows)) if w in titles[i]), None)
+                best = (0.0, idx) if idx is not None else None
+            if best is not None and best not in top:
                 if len(top) >= k:
                     top.pop()
                 top.append(best)
-        return [Hit(p, pg, t, s) for s, p, pg, t in top]
+        return [Hit(rows[i][0], rows[i][1], rows[i][2], s) for s, i in top]
 
 
 def format_context(hits: list[Hit]) -> str:

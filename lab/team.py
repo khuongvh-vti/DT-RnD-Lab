@@ -117,18 +117,23 @@ class Director:
         return f"# Báo cáo tuần Phòng R&D Digital Twin – {today}\n\n{text}\n"
 
     # Hỏi nhanh: chọn chuyên viên phù hợp, tra kho 1 lần, trả lời THẲNG câu hỏi (không theo khuôn báo cáo tuần)
-    def route(self, question: str) -> list[str]:
+    def route(self, question: str) -> tuple[list[str], str]:
+        """Chọn chuyên viên + sinh từ khóa tiếng Anh để tìm trong tài liệu gốc (IEC/CIGRE đều bằng tiếng Anh)."""
         keys = ", ".join(f"{k} ({m.spec['scope']})" for k, m in self.members.items())
         try:
             r = self.llm.chat_json(self.system, role="director", user=f"Câu hỏi: {question}\nChọn 1–2 chuyên viên phù hợp "
-                                   f"nhất trong: {keys}. Trả JSON {{\"members\":[\"key\"]}}")
-            return [k for k in r.get("members", []) if k in self.members][:2] or ["standards"]
+                                   f"nhất trong: {keys}. Đồng thời viết 5–12 từ khóa TIẾNG ANH chuyên ngành để tìm trong "
+                                   "tiêu chuẩn IEC/IEEE/CIGRE (ví dụ: hot-spot temperature, loading guide, Duval triangle). "
+                                   'Trả JSON {"members":["key"],"keywords_en":"..."}')
+            mem = [k for k in r.get("members", []) if k in self.members][:2] or ["standards"]
+            return mem, str(r.get("keywords_en", ""))[:300]
         except Exception:
-            return ["standards"]
+            return ["standards"], ""
 
     def ask(self, question: str, members: list[str] | None = None, k: int | None = None) -> str:
-        chosen = [m for m in (members or []) if m in self.members] or self.route(question)
-        hits = self.kb.search(question, k=k or self.settings["rag"]["top_k"] + 2)
+        routed, kw = self.route(question)
+        chosen = [m for m in (members or []) if m in self.members] or routed
+        hits = self.kb.search(f"{question} {kw}".strip(), k=k or self.settings["rag"]["top_k"] + 4)
         experts = "\n".join(f"- {self.members[c].spec['name']}: {self.members[c].spec['scope']}" for c in chosen)
         if hits:
             ctx = format_context(hits)
