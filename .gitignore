@@ -11,3 +11,4 @@ library/06_vti_data/**
 data/*.json
 data/upload.scd
 *.tar.gz
+_to_delete/
