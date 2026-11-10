@@ -65,10 +65,23 @@ async function today() {
         <b>${x.code} · ${esc(x.name)}</b><span class="small muted">${fmtDate(x.start)} → ${fmtDate(x.end)}</span>
       </div>`).join("")}</div>
 
+    <h2 class="section-h">🎯 Cơ hội hôm nay từ bản tin năng lượng</h2>
+    <div id="dash-news" class="list"><div class="card muted small">Đang tải…</div></div>
+
     <h2 class="section-h">📑 Báo cáo mới nhất</h2>
     ${last ? `<div class="card click" id="last-rep"><div class="card-head"><h3>${esc(last.title)}</h3><div class="row"><span class="pill">${esc(last.week)}</span><a class="btn" id="last-docx" href="/api/report.docx?path=${encodeURIComponent(last.path)}" download>📄 Word</a></div></div>
       <div class="small muted">Cập nhật ${esc(last.mtime)} · bấm để đọc</div></div>` : `<div class="card muted">Chưa có báo cáo. Bấm “Chạy vòng nghiên cứu tuần”.</div>`}
   `);
+  get("/api/news").then(r => {
+    const box = $("#dash-news");
+    if (!box) return;
+    const d = r.digest;
+    if (!d) { box.innerHTML = '<div class="card small muted">Chưa có bản tin – vào tab 📰 Tin tức &amp; Cơ hội để cập nhật.</div>'; return; }
+    const top = d.items.filter(x => x.is_opportunity).slice(0, 4);
+    box.innerHTML = (top.length ? top : d.items.slice(0, 4)).map(x => `<a class="list-item" href="${esc(x.link)}" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)">
+      <div><b>${esc(x.title)}</b><div class="small muted">${esc(x.publisher)} · ${esc(x.category_vi)}</div></div><span class="pill">${x.score}</span></a>`).join("")
+      + `<a class="small" href="#news">Xem đủ ${d.items.length} tin ngày ${d.date} →</a>`;
+  }).catch(() => {});
   drawOffice($("#office"), TEAM, pk => { askAgent = pk.key === "director" ? null : pk.key; location.hash = "ask"; });
   $("#go-ask").onclick = () => (location.hash = "ask");
   $("#go-tree").onclick = () => (location.hash = "tree");
@@ -155,6 +168,80 @@ async function ask() {
   $("#q").addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(); });
   $("#q").focus();
 }
+
+
+// ------------------------------------------------------------ 📰 Tin tức & Cơ hội
+const NEWS_FILTERS = [
+  ["opp", "🎯 Cơ hội VTI"], ["all", "Tất cả"], ["tender", "📝 Đấu thầu"], ["project", "🏗 Dự án & kế hoạch"],
+  ["vn", "🇻🇳 Trong nước"], ["intl", "🌏 Quốc tế"], ["research", "🔬 Nghiên cứu"],
+];
+let newsFilter = "opp";
+
+async function newsView(arg) {
+  const r = await get("/api/news" + (arg ? "?date=" + encodeURIComponent(arg) : ""));
+  const d = r.digest;
+  page(`
+    <div class="card">
+      <div class="card-head"><h3>📰 Bản tin năng lượng & cơ hội hợp tác cho VTI</h3>
+        <div class="row">
+          ${r.days.length ? `<select id="nday">${r.days.map(x => `<option ${d && x === d.date ? "selected" : ""}>${x}</option>`).join("")}</select>` : ""}
+          <button class="btn btn-primary" id="nref" ${r.running ? "disabled" : ""}>${r.running ? '<span class="spin"></span> Đang cập nhật…' : "🔄 Cập nhật ngay"}</button>
+          ${d ? `<a class="btn" href="/api/news.docx?date=${d.date}" download>📄 Word</a>` : ""}
+        </div></div>
+      <p class="small muted">Tự cập nhật mỗi sáng (giờ đặt trong <code>config/news.yaml</code>) từ Google News (truy vấn tiếng Việt và tiếng Anh), các trang ngành và arXiv. Mỗi tin được chấm điểm mức liên quan tới năng lực VTI (giám sát online, MBA, trạm, DGA, PD, DT…) và tín hiệu cơ hội (đấu thầu, khởi công, hợp tác…). Qwen viết tóm tắt + gợi ý hành động cho các tin điểm cao.</p>
+      ${d ? `<div class="small muted">Cập nhật ${esc(d.fetched_at.replace("T", " "))} · ${d.items.length} tin · ${d.sources.filter(x => x.ok).length}/${d.sources.length} nguồn hoạt động${d.ai_at ? " · AI " + esc(d.ai_at.slice(11)) : ""}</div>` : ""}
+      <pre class="log" id="nlog" hidden></pre>
+    </div>
+    ${d ? `<div class="agent-picker" style="margin-top:14px">${NEWS_FILTERS.map(([k, l]) => `<button data-f="${k}" class="${k === newsFilter ? "on" : ""}">${l} <span class="pill">${newsCount(d, k)}</span></button>`).join("")}</div>
+    <input id="nq" placeholder="Lọc theo từ khóa: EVN, 110kV, BESS, Hitachi…" style="width:100%;margin-bottom:12px">
+    <div class="list" id="nlist"></div>
+    <details class="card" style="margin-top:14px"><summary class="small">Tình trạng ${d.sources.length} nguồn tin</summary>
+      <ul class="small">${d.sources.map(x => `<li>${x.ok ? "✅" : "⚠️"} ${esc(x.name)} – ${x.count} tin${x.error ? " · " + esc(x.error) : ""}</li>`).join("")}</ul></details>`
+    : `<div class="card" style="margin-top:14px"><p>Chưa có bản tin nào. Bấm <b>🔄 Cập nhật ngay</b> (cần Internet; khoảng 1–2 phút, phần AI thêm vài phút).</p></div>`}`);
+  if ($("#nday")) $("#nday").onchange = e => (location.hash = "news:" + e.target.value);
+  $("#nref").onclick = async () => {
+    const btn = $("#nref"), log = $("#nlog");
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang cập nhật…'; log.hidden = false;
+    try {
+      const { job } = await post("/api/news/refresh", { ai: true });
+      await waitJob(job, l => { log.textContent = l.slice(-14).join("\n"); });
+      toast("✅ Đã cập nhật bản tin");
+      newsView();
+    } catch (e) { toast("Lỗi cập nhật tin: " + e.message, true); btn.disabled = false; btn.textContent = "🔄 Cập nhật ngay"; }
+  };
+  if (!d) return;
+  const draw = () => {
+    const q = ($("#nq").value || "").toLowerCase();
+    const items = newsPick(d, newsFilter).filter(x => !q || (x.title + " " + x.summary + " " + x.publisher).toLowerCase().includes(q));
+    $("#nlist").innerHTML = items.slice(0, 120).map(x => `
+      <div class="card" style="padding:14px 16px">
+        <div class="row" style="justify-content:space-between;align-items:flex-start">
+          <a href="${esc(x.link)}" target="_blank" rel="noopener" style="font-weight:700;color:var(--ink);text-decoration:none;flex:1">${esc(x.title)}</a>
+          ${x.is_opportunity ? '<span class="pill warn">🎯 Cơ hội</span>' : ""}
+        </div>
+        <div class="small muted" style="margin:4px 0">${esc(x.publisher)} · ${esc((x.published || "").slice(0, 16).replace("T", " "))} · <span class="pill">${esc(x.category_vi)}</span> <span class="pill">${x.region === "vn" ? "Trong nước" : "Quốc tế"}</span> · điểm ${x.score}</div>
+        ${x.ai ? `<div class="small"><b>Tóm tắt:</b> ${esc(x.ai.tom_tat)}<br><b>Cơ hội VTI:</b> ${esc(x.ai.co_hoi)}<br><b>Việc nên làm:</b> ${esc(x.ai.hanh_dong)} <span class="pill">AI · Qwen</span></div>`
+               : (x.summary && x.summary !== x.title ? `<div class="small muted">${esc(x.summary.slice(0, 260))}</div>` : "")}
+        ${x.reasons.length ? `<div class="small muted" style="margin-top:4px">↳ ${esc(x.reasons.join(" · "))}</div>` : ""}
+      </div>`).join("") || '<div class="card muted">Không có tin phù hợp bộ lọc.</div>';
+  };
+  view().querySelectorAll("[data-f]").forEach(b => b.onclick = () => {
+    newsFilter = b.dataset.f;
+    view().querySelectorAll("[data-f]").forEach(x => x.classList.toggle("on", x === b));
+    draw();
+  });
+  $("#nq").oninput = draw;
+  draw();
+}
+
+function newsPick(d, f) {
+  const it = d.items;
+  if (f === "opp") return it.filter(x => x.is_opportunity);
+  if (f === "tender" || f === "project" || f === "research") return it.filter(x => x.category === f);
+  if (f === "vn" || f === "intl") return it.filter(x => x.region === f && x.category !== "research");
+  return it;
+}
+function newsCount(d, f) { return newsPick(d, f).length; }
 
 // ------------------------------------------------------------ 📑 Báo cáo
 async function reports(arg) {
@@ -369,7 +456,7 @@ async function settings() {
 }
 
 // ------------------------------------------------------------ router
-const VIEWS = { today, tree, ask, reports, team, tools, library, settings };
+const VIEWS = { today, tree, ask, news: newsView, reports, team, tools, library, settings };
 
 async function route() {
   const [name, arg] = (location.hash.slice(1) || "today").split(":");

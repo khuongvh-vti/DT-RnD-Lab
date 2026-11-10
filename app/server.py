@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 import yaml  # noqa: E402
 
-from lab import docx_export, site  # noqa: E402
+from lab import docx_export, news, site  # noqa: E402
 from lab import site_content as C  # noqa: E402
 from lab.physics import dga, scl, transformer_thermal as th  # noqa: E402
 
@@ -180,6 +180,58 @@ def job_week(log, focus):
     return {"path": str(Path(path).relative_to(ROOT))}
 
 
+NEWS_DIR = DATA / "news"
+
+
+def news_cfg() -> dict:
+    return yaml.safe_load((ROOT / "config/news.yaml").read_text(encoding="utf-8"))
+
+
+def news_days() -> list[str]:
+    return sorted((f.stem for f in NEWS_DIR.glob("*.json")), reverse=True) if NEWS_DIR.exists() else []
+
+
+def news_load(day: str | None = None) -> dict | None:
+    days = news_days()
+    day = day or (days[0] if days else None)
+    if not day or not re.match(r"^\d{4}-\d{2}-\d{2}$", day):
+        return None
+    f = NEWS_DIR / f"{day}.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
+
+
+def job_news(log, with_ai=True):
+    cfg = news_cfg()
+    log("Đang lấy tin từ các nguồn…")
+    d = news.collect(cfg, log=log)
+    news.save(d, NEWS_DIR, int(cfg.get("keep_days", 60)))
+    log(f"Đã lưu {len(d['items'])} tin, {sum(1 for x in d['items'] if x['is_opportunity'])} cơ hội.")
+    if with_ai:
+        try:
+            s, _ = load_cfg()
+            news.ai_enrich(d, get_llm(s), int(cfg.get("ai_top", 8)), log=log)
+            news.save(d, NEWS_DIR, int(cfg.get("keep_days", 60)))
+        except Exception as e:
+            log(f"Bỏ qua phần AI (Ollama chưa chạy?): {e}")
+    return {"date": d["date"], "items": len(d["items"])}
+
+
+def news_scheduler():
+    """Mỗi phút kiểm tra: tới giờ trong config (mặc định 06:30) mà chưa có bản tin hôm nay thì tự cập nhật."""
+    import time
+    while True:
+        try:
+            hhmm = str(news_cfg().get("schedule", "06:30"))
+            now = dt.datetime.now()
+            today = now.date().isoformat()
+            running = any(j["kind"] == "news" and j["state"] == "running" for j in JOBS.values())
+            if now.strftime("%H:%M") >= hhmm and today not in news_days() and not running:
+                start_job("news", job_news, True)
+        except Exception:
+            pass
+        time.sleep(60)
+
+
 def job_ingest(log):
     s, t = load_cfg()
     _, kb = director(s, t)
@@ -309,6 +361,15 @@ class Handler(BaseHTTPRequestHandler):
                 md = "\n\n".join(chat_md(it) for it in items)
                 title = "Hỏi đáp phòng R&D Digital Twin" if len(items) > 1 else f"Hỏi đáp: {items[0]['q'][:80]}"
                 return self.send_docx(docx_export.markdown_to_docx(md, title=title), docx_name("HoiDap", dt.datetime.now().strftime("%Y%m%d_%H%M")))
+            if u.path == "/api/news":
+                d = news_load(q.get("date"))
+                return self.send_json({"days": news_days(), "digest": d,
+                                       "running": any(j["kind"] == "news" and j["state"] == "running" for j in JOBS.values())})
+            if u.path == "/api/news.docx":
+                d = news_load(q.get("date"))
+                if not d:
+                    return self.send_json({"error": "Chưa có bản tin"}, 404)
+                return self.send_docx(docx_export.markdown_to_docx(news.to_markdown(d)), docx_name("BanTin", d["date"]))
             if u.path == "/api/library":
                 return self.send_json(self.library())
             if u.path == "/api/chat":
@@ -338,6 +399,9 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/week":
                 b = self.jbody()
                 return self.send_json({"job": start_job("week", job_week, b.get("focus", ""))})
+            if u.path == "/api/news/refresh":
+                b = self.jbody()
+                return self.send_json({"job": start_job("news", job_news, bool(b.get("ai", True)))})
             if u.path == "/api/ingest":
                 return self.send_json({"job": start_job("ingest", job_ingest)})
             if u.path == "/api/upload":
@@ -415,6 +479,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     DATA.mkdir(exist_ok=True)
     start_job("ingest", job_ingest)  # tự nạp tài liệu mới trong library/ mỗi lần server khởi động
+    threading.Thread(target=news_scheduler, daemon=True).start()  # bản tin năng lượng hằng ngày
     host = "0.0.0.0" if remote_cfg().get("token") else "127.0.0.1"
     srv = ThreadingHTTPServer((host, PORT), Handler)
     print(f"DT-RnD-Lab đang chạy: http://localhost:{PORT}")

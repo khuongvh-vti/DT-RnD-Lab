@@ -1,0 +1,116 @@
+# Nguồn tin cho mục "📰 Tin tức & Cơ hội" – sửa thoải mái, server đọc lại mỗi lần cập nhật.
+# kind: news | research ; region: vn | intl
+# Google News RSS: https://news.google.com/rss/search?q=<truy vấn>&hl=vi&gl=VN&ceid=VN:vi  (tiếng Việt)
+#                  https://news.google.com/rss/search?q=<query>&hl=en-US&gl=US&ceid=US:en (tiếng Anh)
+schedule: "06:30"      # giờ tự cập nhật mỗi ngày (giờ máy Mac)
+keep_days: 60          # giữ bản tin bao nhiêu ngày
+max_age_hours: 72      # chỉ lấy tin trong 72 giờ gần nhất
+ai_top: 8              # số tin Qwen viết tóm tắt + gợi ý hành động cho VTI
+
+google_news_vn:
+  - "EVN dự án trạm biến áp"
+  - "EVNNPT đóng điện trạm biến áp 220kV OR 500kV"
+  - "khởi công trạm biến áp 110kV"
+  - "mời thầu trạm biến áp OR đấu thầu lưới điện"
+  - "Quy hoạch điện VIII điều chỉnh"
+  - "chuyển đổi số ngành điện"
+  - "trạm biến áp không người trực"
+  - "lưu trữ năng lượng BESS Việt Nam"
+  - "điện gió ngoài khơi Việt Nam"
+  - "điện mặt trời áp mái Việt Nam"
+  - "nhà máy điện khởi công Việt Nam"
+  - "giám sát trực tuyến máy biến áp"
+  - "Bộ Công Thương năng lượng kế hoạch"
+  - "đường dây 500kV mạch 3 OR đường dây 500kV"
+  - "trung tâm dữ liệu điện năng Việt Nam"
+
+google_news_intl:
+  - "power transformer monitoring"
+  - "digital twin utility grid"
+  - "substation digitalization"
+  - "transformer shortage utilities"
+  - "Vietnam power grid investment"
+  - "ASEAN power grid interconnection"
+  - "Hitachi Energy transformer"
+  - "Siemens Energy grid"
+  - "GE Vernova grid"
+  - "battery energy storage Southeast Asia"
+  - "dissolved gas analysis transformer"
+
+rss:
+  - {name: "VnExpress Kinh doanh", url: "https://vnexpress.net/rss/kinh-doanh.rss", region: vn, kind: news}
+  - {name: "Utility Dive", url: "https://www.utilitydive.com/feeds/news/", region: intl, kind: news}
+  - {name: "pv magazine", url: "https://www.pv-magazine.com/feed/", region: intl, kind: news}
+  - {name: "Transformers Magazine", url: "https://transformers-magazine.com/feed/", region: intl, kind: news}
+
+arxiv:   # bài nghiên cứu mới (arXiv API, miễn phí)
+  - 'all:"power transformer" AND (all:"digital twin" OR all:"condition monitoring" OR all:"dissolved gas")'
+  - 'all:"substation" AND all:"digital twin"'
+  - 'all:"transformer" AND all:"hot-spot temperature"'
+
+# Từ khóa chấm điểm mức liên quan tới năng lực VTI (giám sát online, nhiệt độ không dây, DGA, PD, DTS, DT…)
+vti_keywords:
+  "giám sát": 3
+  "monitoring": 3
+  "máy biến áp": 3
+  "transformer": 3
+  "trạm biến áp": 3
+  "substation": 3
+  "dga": 4
+  "khí hòa tan": 4
+  "dissolved gas": 4
+  "phóng điện cục bộ": 4
+  "partial discharge": 4
+  "nhiệt độ": 2
+  "temperature": 2
+  "cảm biến": 3
+  "sensor": 3
+  "sợi quang": 3
+  "fiber": 2
+  "digital twin": 4
+  "bản sao số": 4
+  "scada": 3
+  "iec 61850": 4
+  "không người trực": 4
+  "unmanned": 3
+  "chuyển đổi số": 3
+  "digitalization": 3
+  "110kv": 3
+  "110 kv": 3
+  "220kv": 3
+  "220 kv": 3
+  "500kv": 3
+  "500 kv": 3
+  "evn": 2
+  "evnnpt": 3
+  "bess": 2
+  "lưu trữ năng lượng": 2
+  "asset management": 3
+  "predictive maintenance": 3
+  "bảo dưỡng": 2
+  "thí nghiệm": 2
+  "lưới điện": 2
+  "grid": 1
+
+opportunity_keywords:   # dấu hiệu "cơ hội" (dự án mới, thầu, hợp tác)
+  "đấu thầu": 5
+  "mời thầu": 5
+  "gói thầu": 5
+  "tender": 5
+  "rfp": 5
+  "khởi công": 4
+  "phê duyệt": 3
+  "dự án": 2
+  "đầu tư": 2
+  "kế hoạch": 1
+  "hợp tác": 3
+  "mou": 4
+  "ký kết": 3
+  "partnership": 3
+  "contract": 3
+  "awarded": 3
+  "investment": 2
+  "project": 1
+  "đóng điện": 3
+  "nâng cấp": 2
+  "cải tạo": 2

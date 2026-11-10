@@ -46,6 +46,7 @@ Chạy tự động 8:00 thứ Hai: xem hướng dẫn trong `scripts/com.vticor
 | 🏠 Hôm nay | Giai đoạn hiện tại & % tiến độ, phòng làm việc minh họa (bấm người để hỏi), số liệu kho, báo cáo mới nhất, nút chạy vòng tuần |
 | 🌳 Sơ đồ cây | Cây tri thức: bấm nút để xem chi tiết; mọi `.md` trong `reports/` tự thành nhánh |
 | 🤖 Hỏi phòng R&D | Hỏi Trưởng phòng hoặc từng chuyên viên (RAG + Qwen), lưu lịch sử, xuất từng câu trả lời hoặc toàn bộ ra Word |
+| 📰 Tin tức & Cơ hội | Tự tổng hợp 06:30 mỗi sáng (Google News VN/quốc tế, RSS, arXiv): dự án, đấu thầu, kế hoạch triển khai, bài báo, nghiên cứu ngành năng lượng; lọc **🎯 Cơ hội VTI**, Qwen gợi ý hành động; nút "Cập nhật ngay", xuất Word. Cấu hình nguồn/từ khóa: `config/news.yaml`; dữ liệu lưu `data/news/` (không đưa lên git) |
 | 📑 Báo cáo | Đọc mọi báo cáo tuần, nút **📄 Xuất Word** (.docx A4, header, số trang, bảng, danh sách) |
 | 👥 Nhân sự | 8 thành viên: phạm vi, tài liệu gốc, câu hỏi thường trực |
 | 🧮 Công cụ | Nhiệt MBA IEC 60076-7 (đồ thị θh/θo, loss of life), DGA Duval/IEC 60599, đọc SCD IEC 61850-6 |

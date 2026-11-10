@@ -13,3 +13,4 @@ data/upload.scd
 *.tar.gz
 _to_delete/
 data/txt/
+data/news/

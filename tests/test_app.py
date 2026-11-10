@@ -99,3 +99,25 @@ def test_kb_entity_coverage_and_direct_answer():
     f = Fake()
     out = Director(t, s, f, kb).ask("IEEE C57.143 bản mới nhất?")
     assert "báo cáo tuần" in f.prompt and "## Nguồn trong kho" in out and "FS02" in out
+
+
+def test_news_collect_classify_and_api():
+    import datetime as dt
+    import yaml
+    from lab import news
+    cfg = yaml.safe_load((ROOT / "config/news.yaml").read_text(encoding="utf-8"))
+    now = dt.datetime.now(dt.timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
+    rss = f"""<?xml version="1.0"?><rss><channel>
+<item><title>EVNNPT mời thầu gói giám sát trực tuyến máy biến áp 220kV - Báo Công Thương</title><link>https://x/1</link><pubDate>{now}</pubDate></item>
+<item><title>Giá vàng hôm nay - VnExpress</title><link>https://x/2</link><pubDate>{now}</pubDate></item></channel></rss>""".encode()
+    d = news.collect(cfg, log=lambda *a: None, fetcher=lambda u: rss)
+    top = d["items"][0]
+    assert top["is_opportunity"] and top["category"] == "tender" and top["publisher"] == "Báo Công Thương"
+    assert len([x for x in d["items"] if x["link"] == "https://x/1"]) == 1
+    assert "Cơ hội hợp tác" in news.to_markdown(d)
+    import tempfile
+    server.NEWS_DIR = Path(tempfile.mkdtemp())
+    news.save(d, server.NEWS_DIR)
+    r = json.loads(call("/api/news")[1])
+    assert r["digest"]["date"] == d["date"] and d["date"] in r["days"]
+    assert call(f"/api/news.docx?date={d['date']}")[1][:2] == b"PK"
