@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+data/*.sqlite
+logs/*.log
+logs/launchd.*
+library/**/*.pdf
+library/**/*.docx
+library/06_vti_data/**
+.pytest_cache/

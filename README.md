@@ -1,0 +1,66 @@
+# DT-RnD-Lab – Phòng R&D Digital Twin ngành điện (VTICorp)
+
+Phòng nghiên cứu gồm 8 AI agent chạy **hoàn toàn local** trên máy anh bằng **Qwen + Ollama**. Mục tiêu hiện tại là
+MVP 2 luồng song song **Transformer DT + Substation DT 110 kV** triển khai tại khách hàng trong **Q1/2027**.
+
+## Nhân sự (config/team.yaml)
+| Agent | Vai trò |
+| --- | --- |
+| `director` | Trưởng phòng: lập kế hoạch tuần, giao việc, phản biện, tổng hợp báo cáo |
+| `standards` | Tiêu chuẩn & Kiến trúc DT (ISO/IEC 30173, IEC 63278, IEC 61850, CIM) |
+| `physics` | Mô hình vật lý: nhiệt IEC 60076-7, DGA IEC 60599, PD IEC 60270 |
+| `data_ai` | Dữ liệu & AI: Health Index, anomaly detection, hybrid physics-ML |
+| `substation` | Substation DT trạm 110 kV: SCL/SCD, topology, máy cắt/GIS, tổng hợp cảnh báo |
+| `ot_cyber` | OT/IoT & an ninh mạng: IEC 61850/104, MQTT, IEC 62443/62351 |
+| `benchmark` | Benchmark vendor/utility quốc tế và trong nước |
+| `vn_market` | Thị trường, chính sách, đấu thầu, kế hoạch pilot tại VN |
+
+## Cài đặt (macOS Apple Silicon)
+```bash
+cd ~/Documents/DT-RnD-Lab
+bash scripts/install_mac.sh        # tạo venv, tải model Qwen theo RAM, nạp kho tài liệu, chạy test
+```
+Chọn model tự động theo RAM (`config/settings.yaml` → `chat_model: auto`):
+16 GB → `qwen3.5:9b` (máy anh hiện tại) · 32 GB → `qwen3.6:27b` · ≥ 48 GB → `qwen3.6:35b-a3b`. Embedding: `qwen3-embedding:0.6b`.
+
+## Sử dụng
+```bash
+source .venv/bin/activate
+python3 dtlab.py doctor                                  # kiểm tra máy/Ollama/model/kho
+python3 dtlab.py ingest                                  # nạp tài liệu mới trong library/
+python3 dtlab.py week --focus "Chốt danh mục tín hiệu MVP"  # 1 vòng nghiên cứu tuần → reports/YYYY-Www/
+python3 dtlab.py ask "Ngưỡng cảnh báo DGA cho MBA 110 kV?"
+python3 dtlab.py thermal --load 1.2 --ambient 35 --cooling ONAF
+python3 dtlab.py scl tests/data/sample.scd                 # khung Substation DT từ file SCD
+python3 dtlab.py dga --h2 100 --ch4 120 --c2h2 1 --c2h4 50 --c2h6 65
+```
+Chạy tự động 8:00 thứ Hai: xem hướng dẫn trong `scripts/com.vticorp.dtlab.weekly.plist`.
+
+## Chế độ hybrid: local + cloud lớn
+Model local (`qwen3.5:9b`) có giới hạn suy luận. Vì vậy các vai trò cần suy luận sâu (`director`, `physics`, `standards`,
+`substation`, `data_ai`) có thể chạy trên **Qwen-Max (Alibaba Cloud Model Studio, endpoint International)**:
+```bash
+export DASHSCOPE_API_KEY="sk-..."            # thêm vào ~/.zshrc để giữ lâu dài
+# config/settings.yaml → cloud.enabled: true
+python3 dtlab.py doctor                      # kiểm tra: "Cloud: BẬT …"
+```
+Khóa an toàn:
+- Embedding và kho tài liệu luôn ở máy anh.
+- Nếu ngữ cảnh có đoạn trích từ `library/06_vti_data` (dữ liệu khách hàng), yêu cầu đó bị buộc chạy local.
+- Hệ thống tự về local khi vượt `monthly_budget_usd`, khi cloud lỗi, hoặc khi chưa có key.
+- Chi phí ghi theo tháng trong `data/cloud_usage.json`. Mỗi báo cáo tuần ghi rõ engine đã dùng cho từng mảng.
+
+## Cấu trúc
+```
+config/      settings.yaml (model, đường dẫn, deadline) · team.yaml (vai trò, tiêu chuẩn, câu hỏi thường trực)
+lab/         llm.py (Ollama) · cloud.py (cloud + định tuyến hybrid) · knowledge.py (RAG SQLite) · team.py (Trưởng phòng + chuyên viên) · hardware.py
+lab/physics/ transformer_thermal.py (IEC 60076-7) · dga.py (Duval 1, IEC 60599) · scl.py (đọc SCD IEC 61850-6)
+library/     kho tài liệu (không đẩy PDF bản quyền lên git)
+reports/     báo cáo tuần + báo cáo theo yêu cầu
+tests/       kiểm thử offline (pytest)
+```
+
+## Nguyên tắc
+- Dữ liệu và tài liệu ở lại máy anh; GitHub chỉ lưu code, cấu hình và báo cáo.
+- Mọi nhận định phải trích nguồn [S#] từ kho; điều chưa kiểm chứng ghi là GIẢ ĐỊNH.
+- Mô hình vật lý dùng tham số mặc định chỉ để thử; khi dùng thật phải lấy từ biên bản heat-run test của máy.

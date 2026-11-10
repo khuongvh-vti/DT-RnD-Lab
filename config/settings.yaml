@@ -1,0 +1,42 @@
+# Cấu hình chung Phòng R&D Digital Twin (chạy local)
+ollama:
+  host: "http://127.0.0.1:11434"
+  # Máy anh Khương: MacBook Apple Silicon 16 GB RAM → qwen3.5:9b (~6.6 GB). Đặt "auto" để tự chọn theo RAM.
+  chat_model: "qwen3.5:9b"
+  embed_model: "qwen3-embedding:0.6b"
+  temperature: 0.3
+  num_ctx: 16384        # 16 GB RAM: giữ 16K context để không tràn bộ nhớ
+  timeout_s: 900
+
+# Model cloud lớn cho các việc cần suy luận sâu (hybrid). Bật bằng: enabled: true + export DASHSCOPE_API_KEY=...
+cloud:
+  enabled: false
+  provider: "Alibaba Cloud Model Studio (DashScope, International – Singapore)"
+  base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+  api_key_env: "DASHSCOPE_API_KEY"
+  model: "qwen3-max"            # có thể đổi sang flagship mới hơn (vd. qwen3.7-max / qwen3.8-max) sau khi kiểm tra console
+  temperature: 0.3
+  roles: ["director", "physics", "standards", "substation", "data_ai"]   # agent dùng cloud; còn lại chạy local
+  sensitive_paths: ["library/06_vti_data"]   # đoạn trích từ đây → luôn chạy local, không gửi cloud
+  monthly_budget_usd: 10
+  price_in_per_m: 1.20          # USD / 1M token input (qwen3-max, international) – cập nhật theo bảng giá
+  price_out_per_m: 6.00
+
+paths:
+  library: "library"        # kho tài liệu (PDF/MD/TXT) – anh bỏ tài liệu vào đây
+  index_db: "data/knowledge.sqlite"
+  reports: "reports"
+
+rag:
+  chunk_chars: 1500
+  overlap_chars: 200
+  top_k: 8
+
+project:
+  name: "Transformer DT + Substation DT 110 kV – MVP (2 luồng song song)"
+  deadline: "2027-03-31"     # khách hàng cần triển khai trong Q1/2027
+  current_phase: "Sprint 0 – Chốt yêu cầu & nền tảng"
+
+git:
+  auto_commit: true
+  auto_push: true            # cần đã `git remote add origin ...`

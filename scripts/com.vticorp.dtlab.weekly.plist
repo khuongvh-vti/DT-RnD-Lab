@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Lịch chạy tự động 8:00 sáng thứ Hai trên Mac.
+     Cài: cp scripts/com.vticorp.dtlab.weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.vticorp.dtlab.weekly.plist
+     Sửa đường dẫn dưới nếu anh đặt thư mục chỗ khác. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.vticorp.dtlab.weekly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/khuongvu/Documents/DT-RnD-Lab/scripts/run_weekly.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardOutPath</key><string>/Users/khuongvu/Documents/DT-RnD-Lab/logs/launchd.out</string>
+  <key>StandardErrorPath</key><string>/Users/khuongvu/Documents/DT-RnD-Lab/logs/launchd.err</string>
+</dict>
+</plist>
