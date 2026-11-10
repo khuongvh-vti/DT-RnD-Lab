@@ -21,6 +21,7 @@ import yaml  # noqa: E402
 
 from lab import docx_export, news, site  # noqa: E402
 from lab import modules as M  # noqa: E402
+from lab import web as W  # noqa: E402
 from lab import site_content as C  # noqa: E402
 from lab.physics import dga, scl, transformer_thermal as th  # noqa: E402
 
@@ -198,11 +199,11 @@ def chat_append(item):
 
 
 # ------------------------------------------------------------------ jobs
-def job_ask(log, question, agent, module=None):
+def job_ask(log, question, agent, module=None, web=None):
     s, t = load_cfg()
     boss, _ = director(s, t)
     log(f"Câu hỏi gửi tới: {agent or 'Trưởng phòng định tuyến'}{' · module ' + module if module else ''}")
-    answer = boss.ask(question, members=[agent] if agent else None, module=module)
+    answer = boss.ask(question, members=[agent] if agent else None, module=module, web=web, log=log)
     engine = getattr(boss.llm, "last_engine", "local")
     item = {"time": dt.datetime.now().strftime("%d/%m %H:%M"), "agent": agent or "director", "q": question,
             "a": answer, "a_html": site.md_to_html(answer), "engine": engine, "module": module or ""}
@@ -518,7 +519,11 @@ class Handler(BaseHTTPRequestHandler):
                 question = (b.get("question") or "").strip()
                 if not question:
                     return self.send_json({"error": "Câu hỏi trống"}, 400)
-                return self.send_json({"job": start_job("ask", job_ask, question, b.get("agent") or None, b.get("module") or None)})
+                web = b.get("web")
+                return self.send_json({"job": start_job("ask", job_ask, question, b.get("agent") or None, b.get("module") or None,
+                                                        None if web is None else bool(web))})
+            if u.path == "/api/web/check":
+                return self.send_json({"job": start_job("webcheck", lambda log: {"checks": W.check_engines()})})
             if u.path in ("/api/week", "/api/cycle"):
                 b = self.jbody()
                 mods = [m for m in (b.get("modules") or []) if m in M.load()]
@@ -601,7 +606,8 @@ class Handler(BaseHTTPRequestHandler):
             models, cloud, chat_model = [], {"enabled": False, "lines": [str(e)], "next": "local"}, "?"
         mods = M.load()
         return {"phase": phase_now(), "project": s.get("project", {}),
-                "modules": {"total": len(mods), "active": sum(1 for m in mods.values() if m.get("status") == "active")}, "ram_gb": round(total_ram_gb()),
+                "modules": {"total": len(mods), "active": sum(1 for m in mods.values() if m.get("status") == "active")},
+                "web": {"enabled": W.load_cfg().get("enabled", True)}, "ram_gb": round(total_ram_gb()),
                 "ollama_ok": bool(models), "models": models, "chat_model": chat_model,
                 "embed_model": s["ollama"]["embed_model"], "cloud": cloud,
                 "kb": KnowledgeBase(s["paths"]["index_db"]).stats(), "reports": len(list_reports()),

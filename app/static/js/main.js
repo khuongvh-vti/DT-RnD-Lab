@@ -228,14 +228,14 @@ async function ask() {
       <p class="small muted" id="who-hint"></p>
       <textarea id="q" placeholder="Ví dụ: So sánh kiến trúc DT của Hitachi Lumada APM và Siemens Sensformer; cái nào phù hợp lưới 110 kV Việt Nam?"></textarea>
       <div class="row" style="margin-top:10px;justify-content:space-between">
-        <span class="small muted">⌘/Ctrl + Enter để gửi · dữ liệu khách hàng (06_vti_data) luôn xử lý local</span>
+        <span class="small muted"><label style="cursor:pointer"><input type="checkbox" id="use-web" ${STATUS?.web?.enabled === false ? "" : "checked"}> 🌐 Tra thêm Internet (ưu tiên web chính thức)</label> · ⌘/Ctrl + Enter để gửi · dữ liệu khách hàng (06_vti_data) không gửi ra Internet</span>
         <button class="btn btn-primary" id="send">Gửi câu hỏi</button>
       </div>
     </div>
     <div class="chat" id="chat" style="margin-top:16px"></div>`);
   const hint = () => {
     const p = who(askAgent);
-    $("#who-hint").textContent = (askAgent ? `Hỏi trực tiếp ${p.name} – ${p.role} (tra kho tài liệu + Qwen).` : `Trưởng phòng Minh chọn chuyên viên phù hợp${mod ? " trong module " + mod.name : " trong cả phòng"} và trả lời dựa trên kho tài liệu.`);
+    $("#who-hint").textContent = (askAgent ? `Hỏi trực tiếp ${p.name} – ${p.role} (tra kho tài liệu + Internet, Qwen tổng hợp, có trích nguồn).` : `Trưởng phòng Minh chọn chuyên viên phù hợp${mod ? " trong module " + mod.name : " trong cả phòng"}, tra kho tài liệu + website chính thức (hãng, IEC/IEEE/CIGRE, EVN…) rồi trả lời có trích nguồn [S#]/[W#]; chi tiết không có nguồn sẽ bị đánh dấu CHƯA XÁC MINH.`);
   };
   hint();
   const bubble = (it, idx) => `
@@ -261,7 +261,7 @@ async function ask() {
     pending.innerHTML = `<div class="msg me">${esc(q)}</div><div class="msg bot"><span class="spin"></span> ${esc(who(askAgent).name)} đang tra tài liệu và soạn câu trả lời…</div>`;
     chat.prepend(pending);
     try {
-      const { job } = await post("/api/ask", { question: q, agent: askAgent, module: askModule || null });
+      const { job } = await post("/api/ask", { question: q, agent: askAgent, module: askModule || null, web: $("#use-web") ? $("#use-web").checked : null });
       refreshChips();
       const it = await waitJob(job);
       pending.outerHTML = bubble(it, hist.length);
@@ -557,6 +557,18 @@ async function library(arg) {
 // ------------------------------------------------------------ ⚙️ Hệ thống
 async function settings() {
   const st = await get("/api/status");
+  setTimeout(() => {
+    const b = $("#web-check");
+    if (b) b.onclick = async () => {
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> Đang kiểm tra…';
+      try {
+        const { job } = await post("/api/web/check", {});
+        const r = await waitJob(job);
+        $("#web-res").innerHTML = `<table class="tbl"><tr><th>Công cụ</th><th>Kết quả</th></tr>${r.checks.map(c => `<tr><td>${esc(c.engine)}</td><td>${c.ok ? "✅ " + c.results + (c.ms ? " kết quả · " + c.ms + " ms" : " ký tự") : "❌ " + esc(c.error || "không có kết quả")}</td></tr>`).join("")}</table>`;
+      } catch (e) { toast(e.message, true); }
+      b.disabled = false; b.textContent = "🩺 Kiểm tra kết nối web";
+    };
+  }, 0);
   page(`
     <div class="grid g2">
       <div class="card"><div class="card-head"><h3>🧠 Model AI</h3><span class="pill ${st.ollama_ok ? "ok" : "bad"}">${st.ollama_ok ? "Ollama đang chạy" : "Ollama chưa chạy"}</span></div>
@@ -568,6 +580,9 @@ async function settings() {
         <ul class="small">${st.cloud.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
         <p class="small muted">Bật trong <code>config/settings.yaml → cloud.enabled: true</code> và đặt khóa API trong <code>.env</code>. Dữ liệu thư mục 06_vti_data luôn chạy local.</p></div>
     </div>
+    <div class="card" style="margin-top:16px"><div class="card-head"><h3>🌐 Nghiên cứu Internet</h3><div class="row"><span class="pill ${st.web?.enabled ? "ok" : ""}">${st.web?.enabled ? "Bật" : "Tắt"}</span><button class="btn" id="web-check">🩺 Kiểm tra kết nối web</button></div></div>
+      <p class="small">Khi hỏi đáp và trong chu kỳ 3 ngày, chuyên viên tra Bing/DuckDuckGo/OpenAlex, đọc trang (ưu tiên 🏛 website chính thức: hãng, IEC/IEEE/CIGRE, EVN, cơ quan nhà nước → ✅ báo chí/tạp chí uy tín → ⚠️ nguồn khác), trích dẫn [W#] kèm URL. Sau khi Qwen trả lời, app tự dò các số liệu/số hiệu tiêu chuẩn không có trong nguồn và gắn nhãn <b>CHƯA XÁC MINH</b>. Danh sách nguồn & hãng: <code>config/web_sources.yaml</code>.</p>
+      <div id="web-res" class="small"></div></div>
     <div class="card" style="margin-top:16px"><div class="card-head"><h3>🧩 Tổ chức phòng</h3><a class="btn" href="#modules">Quản lý module</a></div>
       <div class="kv"><span>Module</span><b>${st.modules.total} (đang nghiên cứu ${st.modules.active})</b><span>Chu kỳ báo cáo</span><b>3 ngày/lần, tự chạy sau 07:00 khi Ollama đang chạy</b>
         <span>Cấu hình</span><span><code>config/modules.yaml</code> (module), <code>config/team.yaml</code> (Trưởng phòng + khối dùng chung), <code>config/settings.yaml → cycle</code></span></div></div>

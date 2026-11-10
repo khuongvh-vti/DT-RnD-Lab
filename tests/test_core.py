@@ -65,6 +65,7 @@ def test_director_week(tmp_path):
     from lab import modules as M
     mods = M.load()
     boss = Director(t, s, FakeLLM(), kb, modules=mods)
+    boss.web_get = lambda *a, **k: (_ for _ in ()).throw(OSError("offline"))  # không ra mạng trong test
     path = boss.run_cycle("test", new_docs=["01_standards/x.pdf"], highlights="- tin A")
     assert path.exists() and path.name == "BAO_CAO_3_NGAY.md"
     plan = json.loads((path.parent / "00_ke_hoach.json").read_text(encoding="utf-8"))

@@ -18,6 +18,13 @@ Trưởng phòng (director) ── điều phối mọi module, báo cáo 3 ngà
 - **Mở module mới:** tab 🧩 Module → ➕ Mở module mới → nhập tên, mục tiêu, phạm vi, câu hỏi, tiêu chuẩn, hạn. Trưởng phòng (Qwen) tự thiết kế 2–4 chuyên viên riêng + lộ trình + từ khóa, tạo `library/m_<module>/` và bài giới thiệu trong `reports/modules/<module>/`. Ollama chưa chạy → dùng khung mặc định.
 - **Báo cáo 3 ngày:** server tự chạy sau 07:00 mỗi 3 ngày (khi Ollama đang chạy; chỉnh trong `config/settings.yaml → cycle`) → `reports/cycles/<ngày>/BAO_CAO_3_NGAY.md` gồm: điểm mới, mới nghiên cứu theo từng module, tài liệu mới vào kho, cơ hội từ bản tin, quyết định cần duyệt, kế hoạch 3 ngày tới. Chạy tay: nút **🗓 Chạy chu kỳ ngay** hoặc `python3 dtlab.py cycle`.
 
+## Nghiên cứu Internet có kiểm chứng (lab/web.py)
+- Mỗi câu hỏi và mỗi nhiệm vụ trong chu kỳ 3 ngày: tra **kho tài liệu [S#]** + **Internet [W#]** (Bing RSS, DuckDuckGo, OpenAlex cho bài báo khoa học). Câu hỏi nhắc tới hãng (Hitachi Energy, Siemens Energy, GE Vernova, Qualitrol…) → tự thêm truy vấn `site:<website chính thức>`.
+- Xếp hạng nguồn: 🏛 Chính thức (hãng, IEC/IEEE/CIGRE/ISO, EVN, cơ quan nhà nước) → ✅ Uy tín (tạp chí ngành, nhà xuất bản khoa học, báo chuyên ngành) → ⚠️ Chưa xác minh. Danh sách sửa trong `config/web_sources.yaml`.
+- **Chống bịa:** Qwen chỉ được khẳng định điều có [S#]/[W#]; sau khi trả lời, app dò số hiệu tiêu chuẩn và số liệu có đơn vị không xuất hiện trong nguồn nào → mục **🔎 Kiểm chứng tự động** gắn nhãn CHƯA XÁC MINH.
+- Dữ liệu khách hàng (06_vti_data) tham gia câu trả lời → chỉ gửi từ khóa kỹ thuật chung ra Internet. Trang đã đọc được cache 7 ngày trong `data/web_cache/`.
+- Kiểm tra mạng: tab ⚙️ Hệ thống → 🩺 Kiểm tra kết nối web. Tắt tra web: bỏ chọn 🌐 trong tab Hỏi, hoặc `enabled: false` trong `config/web_sources.yaml`.
+
 ## Cài đặt (macOS Apple Silicon)
 ```bash
 cd ~/Documents/DT-RnD-Lab

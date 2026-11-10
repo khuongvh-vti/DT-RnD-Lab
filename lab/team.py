@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import modules as M
+from . import web as W
 from .cloud import is_sensitive
 from .knowledge import KnowledgeBase, format_context
 
@@ -17,6 +18,32 @@ class Task:
     member: str
     title: str
     question: str
+
+
+EVIDENCE_RULES = (
+    "QUY TẮC NGUỒN (bắt buộc):\n"
+    "- Dùng CẢ tài liệu kho [S#] và nguồn Internet [W#]. Ưu tiên nguồn 🏛 Chính thức (website hãng, IEC/IEEE/CIGRE/ISO, "
+    "EVN/EVNNPT, cơ quan nhà nước), rồi ✅ Uy tín (tạp chí ngành, nhà xuất bản khoa học). Nguồn ⚠️ Chưa xác minh chỉ dùng "
+    "khi không có nguồn khác và phải nói rõ.\n"
+    "- Mọi số liệu, số hiệu/phiên bản tiêu chuẩn, tên sản phẩm, tính năng, giá, ngày tháng phải kèm [S#] hoặc [W#]. "
+    "Điều KHÔNG có trong nguồn thì KHÔNG nêu như sự thật – nếu cần thì ghi rõ 'CHƯA CÓ NGUỒN'. Tuyệt đối không bịa.\n"
+    "- KHÔNG dừng ở câu 'không đủ tài liệu': trả lời phần các nguồn hỗ trợ được, rồi liệt kê phần chưa xác minh và "
+    "nơi cụ thể để kiểm chứng (URL, tên tài liệu).\n"
+    "- Nguồn mâu thuẫn nhau thì nêu cả hai và nói nguồn nào đáng tin hơn.")
+
+
+def web_appendix(body: str, wr: "W.WebResearch | None", evidence: str, question: str = "") -> str:
+    """Thêm danh sách nguồn web + cảnh báo các số liệu/tiêu chuẩn không thấy trong nguồn nào."""
+    out = body
+    if wr and wr.sources:
+        out += "\n\n## Nguồn Internet\n" + wr.markdown()
+    miss = W.verify_claims(body, evidence, question)
+    if miss:
+        out += ("\n\n## 🔎 Kiểm chứng tự động\nCác chi tiết sau KHÔNG tìm thấy trong nguồn đã đọc – coi là CHƯA XÁC MINH, "
+                "cần kiểm tra trước khi dùng: " + ", ".join(f"`{m}`" for m in miss))
+    if wr and not wr.sources and wr.errors:
+        out += "\n\n_Không tra được Internet lần này (" + "; ".join(wr.errors[:3]) + ")._"
+    return out
 
 
 @dataclass
@@ -41,16 +68,24 @@ class Member:
                        f"Phạm vi: {spec.get('scope', '')}.\nTiêu chuẩn/tài liệu nền cần bám: {', '.join(spec.get('references', []))}."
                        + (f"\n\n{module_ctx}" if module_ctx else ""))
 
-    def work(self, task: Task, context_note: str = "", keywords: str = "") -> MemberReport:
+    def work(self, task: Task, context_note: str = "", keywords: str = "", web: bool = True, web_get=None) -> MemberReport:
         hits = self.kb.search(f"{task.title}. {task.question} {keywords}".strip(), k=self.top_k)
-        prompt = (f"NHIỆM VỤ CHU KỲ: {task.title}\nCÂU HỎI: {task.question}\n{context_note}\n\n"
-                  f"TÀI LIỆU THAM KHẢO:\n{format_context(hits)}\n\n"
-                  "Viết báo cáo mảng của bạn (markdown, ≤ 600 từ) gồm: 1) Kết luận chính; 2) Phân tích kỹ thuật "
-                  "có trích [S#]; 3) Ý nghĩa cho VTI (giải pháp, cạnh tranh, khả thi tại VN); 4) Câu hỏi mở / dữ liệu cần bổ sung.")
         sens = is_sensitive([h.source for h in hits], self.sensitive_paths)
+        wr = None
+        if web:
+            refs = " ".join(self.spec.get("references", [])[:3])
+            wr = W.research(task.question, f"{keywords} {refs}".strip(), get=web_get or W.http_get, safe_only_keywords=sens)
+        prompt = (f"NHIỆM VỤ CHU KỲ: {task.title}\nCÂU HỎI: {task.question}\n{context_note}\n\n"
+                  f"TÀI LIỆU TRONG KHO:\n{format_context(hits)}\n\n"
+                  f"NGUỒN INTERNET (đã tra lúc này):\n{wr.context() if wr else '(không tra web)'}\n\n{EVIDENCE_RULES}\n\n"
+                  "Viết báo cáo mảng của bạn (markdown, ≤ 600 từ) gồm: 1) Kết luận chính – điểm MỚI tìm được; 2) Phân tích kỹ thuật "
+                  "có trích [S#]/[W#]; 3) Ý nghĩa cho VTI (giải pháp, cạnh tranh, khả thi tại VN); 4) Điều chưa xác minh & nơi kiểm chứng.")
         body = self.llm.chat(self.system, prompt, role=self.key, sensitive=sens)
         engine = getattr(self.llm, "last_engine", "local")
+        evidence = "\n".join(h.text for h in hits) + "\n" + (wr.all_text() if wr else "")
+        body = web_appendix(body, wr, evidence, task.question)
         srcs = [f"[S{i}] {Path(h.source).name} – tr.{h.page}" for i, h in enumerate(hits, 1)]
+        srcs += [f"[{w.id}] {w.title} – {w.url}" for w in (wr.sources if wr else [])]
         return MemberReport(self.key, self.spec["name"], task, body, srcs, sens, engine)
 
 
@@ -58,6 +93,8 @@ class Director:
     def __init__(self, cfg_team: dict, settings: dict, llm, kb: KnowledgeBase, modules: dict | None = None):
         self.team, self.settings, self.llm, self.kb = cfg_team, settings, llm, kb
         self.mods = M.load() if modules is None else modules
+        self.web_enabled = W.load_cfg().get("enabled", True)
+        self.web_get = W.http_get  # thay được trong test
         d = cfg_team["director"]
         self.system = f"{cfg_team['common_rules']}\n\nVai trò của bạn: {d['name']}.\n{d['mission']}"
         top_k = settings["rag"]["top_k"]
@@ -130,7 +167,8 @@ class Director:
             (out_dir / mid).mkdir(exist_ok=True)
             for t in tasks:
                 log(f"  → {t.member}: {t.title}")
-                r = self.members[t.member].work(t, M.context(mod, mid), self.module_keywords(mid))
+                r = self.members[t.member].work(t, M.context(mod, mid), self.module_keywords(mid),
+                                                web=self.web_enabled, web_get=self.web_get)
                 reports[mid].append(r)
                 (out_dir / mid / f"{t.member}.md").write_text(
                     f"# {mod.get('icon', '')} {mod.get('name', mid)} · {r.name}\n\n**Nhiệm vụ:** {t.title}\n\n"
@@ -150,7 +188,8 @@ class Director:
         for mid, rs in reports.items():
             mod = self.mods[mid]
             ph = M.phase_now(mod, day)
-            body = "\n\n".join(f"#### {r.name}\nNhiệm vụ: {r.task.title}\n{r.body[:2500]}" for r in rs)
+            body = "\n\n".join(f"#### {r.name}\nNhiệm vụ: {r.task.title}\n{r.body.split(chr(10) + '## Nguồn Internet')[0][:2500]}\n"
+                                 f"Nguồn web của {r.name}: " + "; ".join(x for x in r.sources if x.startswith("[W")) for r in rs)
             parts.append(f"### MODULE {mod.get('icon', '')} {mod.get('name', mid)} – {ph['code']} {ph['name']} "
                          f"({round(ph['pct'] * 100)}% thời gian giai đoạn)\n{body}")
         sections = "\n".join(f"## {s}" for s in self.team["director"]["report_sections"])
@@ -160,14 +199,22 @@ class Director:
                   f"{highlights or '(không có)'}\n\nPhản biện: chỉ ra nhận định thiếu nguồn hoặc mâu thuẫn giữa các chuyên viên. "
                   "Sau đó viết BÁO CÁO 3 NGÀY gửi anh Khương, tập trung vào những gì MỚI nghiên cứu/bổ sung được, "
                   f"theo đúng các mục:\n{sections}\nTrong mục theo module, dùng '### <icon> <tên module>' cho từng module. "
+                  "Giữ trích dẫn nguồn của chuyên viên (ghi rõ URL cho nguồn web); điều chuyên viên ghi CHƯA XÁC MINH thì giữ nguyên "
+                  "nhãn, không biến thành khẳng định; không thêm số liệu không có trong báo cáo chuyên viên. "
                   "Cuối báo cáo thêm mục '## Phản biện nội bộ'.")
         sens = any(r.sensitive for rs in reports.values() for r in rs)
         text = self.llm.chat(self.system, prompt, role="director", sensitive=sens)
         status = "\n".join(f"| {m.get('icon', '')} {m.get('name', k)} | {M.STATUS_VI.get(m.get('status', 'active'))} | "
                            f"{M.phase_now(m, day)['code']} {M.phase_now(m, day)['name']} |" for k, m in self.mods.items())
         d = dt.date.fromisoformat(day).strftime("%d/%m/%Y")
+        web_src = sorted({x.split("] ", 1)[1] for rs in reports.values() for r in rs for x in r.sources if x.startswith("[W")})
+        evidence = "\n".join(r.body for rs in reports.values() for r in rs)
+        miss = W.verify_claims(text, evidence + "\n" + highlights + "\n" + "\n".join(new_docs))
+        tail = ("\n\n## 🔎 Kiểm chứng tự động\nKhông thấy trong báo cáo chuyên viên/nguồn – coi là CHƯA XÁC MINH: "
+                + ", ".join(f"`{m}`" for m in miss)) if miss else ""
+        src = ("\n\n## Nguồn Internet đã tra trong chu kỳ\n" + "\n".join(f"- {x}" for x in web_src)) if web_src else ""
         return (f"# Báo cáo 3 ngày Phòng R&D – {d}\n\n> Module trong chu kỳ: "
-                f"{', '.join(self.mods[m].get('name', m) for m in reports)}\n\n{text}\n\n"
+                f"{', '.join(self.mods[m].get('name', m) for m in reports)}\n\n{text}{tail}{src}\n\n"
                 f"## Trạng thái các module\n| Module | Trạng thái | Giai đoạn |\n|---|---|---|\n{status}\n")
 
     # Hỏi nhanh: chọn chuyên viên phù hợp, tra kho 1 lần, trả lời THẲNG câu hỏi (không theo khuôn báo cáo tuần)
@@ -185,7 +232,8 @@ class Director:
         except Exception:
             return ["standards"], ""
 
-    def ask(self, question: str, members: list[str] | None = None, k: int | None = None, module: str | None = None) -> str:
+    def ask(self, question: str, members: list[str] | None = None, k: int | None = None, module: str | None = None,
+            web: bool | None = None, log=lambda *_: None) -> str:
         chosen = [m for m in (members or []) if m in self.members]
         routed, kw = self.route(question, module)
         chosen = chosen or routed
@@ -193,23 +241,24 @@ class Director:
         mid = mid if mid in self.mods else None
         hits = self.kb.search(f"{question} {kw}".strip(), k=k or self.settings["rag"]["top_k"] + 4)
         experts = "\n".join(f"- {self.members[c].spec['name']}: {self.members[c].spec.get('scope', '')}" for c in chosen)
-        if hits:
-            ctx = format_context(hits)
-        else:
-            ctx = "(KHO TÀI LIỆU KHÔNG CÓ ĐOẠN NÀO LIÊN QUAN)"
+        ctx = format_context(hits) if hits else "(KHO TÀI LIỆU KHÔNG CÓ ĐOẠN NÀO LIÊN QUAN)"
+        sens = is_sensitive([h.source for h in hits], self.members[chosen[0]].sensitive_paths)
+        wr = None
+        if self.web_enabled if web is None else web:
+            log("Đang tra Internet (ưu tiên website chính thức)…")
+            # dữ liệu khách hàng tham gia → chỉ gửi từ khóa kỹ thuật chung ra Internet
+            wr = W.research(question, kw or self.module_keywords(mid), get=self.web_get, log=log, safe_only_keywords=sens)
         prompt = (f"{M.context(self.mods.get(mid), mid) if mid else ''}\n\n"
                   f"CÂU HỎI CỦA ANH KHƯƠNG: {question}\n\nChuyên môn được giao trả lời:\n{experts}\n\n"
-                  f"TÀI LIỆU THAM KHẢO (chỉ dùng các đoạn này làm căn cứ):\n{ctx}\n\n"
-                  "YÊU CẦU TRẢ LỜI:\n"
+                  f"TÀI LIỆU TRONG KHO:\n{ctx}\n\nNGUỒN INTERNET (vừa tra):\n{wr.context() if wr else '(không tra web)'}\n\n"
+                  f"{EVIDENCE_RULES}\n\nYÊU CẦU TRẢ LỜI:\n"
                   "- Trả lời TRỰC TIẾP đúng câu hỏi. KHÔNG viết dạng báo cáo tuần/báo cáo 3 ngày, KHÔNG chào hỏi, KHÔNG tự giới thiệu.\n"
                   "- Cấu trúc: '## Trả lời ngắn' (3–6 dòng) → '## Chi tiết' (dùng bảng nếu là so sánh; có số liệu, "
-                  "tên tiêu chuẩn, phiên bản) → '## Độ tin cậy & nguồn' → '## Tài liệu còn thiếu' (nếu có).\n"
-                  "- Mọi khẳng định kỹ thuật phải kèm [S#] tương ứng. Điều không có trong tài liệu: ghi 'CẦN KIỂM CHỨNG', "
-                  "không bịa số liệu, tên sản phẩm, phiên bản tiêu chuẩn.\n"
-                  "- Nếu tài liệu không đủ để trả lời, nói rõ và liệt kê cụ thể tài liệu cần anh Khương upload.")
-        sens = is_sensitive([h.source for h in hits], self.members[chosen[0]].sensitive_paths)
+                  "tên tiêu chuẩn, phiên bản, mỗi ý có [S#]/[W#]) → '## Độ tin cậy & nguồn' (nguồn chính thức nào, mức chắc chắn) "
+                  "→ '## Chưa xác minh & cần bổ sung' (điều chưa có nguồn, gợi ý URL/tài liệu cụ thể để kiểm chứng).")
         body = self.llm.chat(self.system, prompt, role=chosen[0], sensitive=sens)
+        evidence = "\n".join(h.text for h in hits) + "\n" + (wr.all_text() if wr else "")
         if hits:
             body += "\n\n## Nguồn trong kho\n" + "\n".join(
                 f"- [S{i}] {Path(h.source).name} – tr.{h.page}" for i, h in enumerate(hits, 1))
-        return body
+        return web_appendix(body, wr, evidence, question)

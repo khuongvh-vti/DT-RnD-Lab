@@ -1,0 +1,117 @@
+# Nguồn Internet cho chuyên viên AI tra cứu (lab/web.py).
+# Nguyên tắc: ưu tiên website CHÍNH THỨC (tổ chức tiêu chuẩn, cơ quan nhà nước, hãng sản xuất), rồi nguồn UY TÍN
+# (tạp chí ngành, nhà xuất bản khoa học, báo chuyên ngành). Nguồn khác vẫn dùng được nhưng bị đánh dấu "Chưa xác minh".
+# Mọi khẳng định trong câu trả lời phải dẫn [S#] (kho) hoặc [W#] (web, có URL); không có nguồn thì không được khẳng định.
+
+enabled: true
+engines: [bing, duckduckgo, openalex]   # công cụ tìm; openalex = bài báo khoa học
+max_pages: 5                             # số trang web đọc cho mỗi câu hỏi / nhiệm vụ
+excerpt_chars: 1400                      # độ dài trích đoạn mỗi trang đưa vào Qwen (giữ vừa 16K context)
+allow_other_domains: true                # false = chỉ dùng nguồn chính thức/uy tín
+
+official:   # tổ chức tiêu chuẩn, cơ quan nhà nước, tập đoàn điện
+  - iec.ch
+  - webstore.iec.ch
+  - ieee.org
+  - standards.ieee.org
+  - ieeexplore.ieee.org
+  - cigre.org
+  - e-cigre.org
+  - iso.org
+  - nfpa.org
+  - ul.com
+  - ulse.org
+  - evn.com.vn
+  - npt.com.vn
+  - evnnpt.vn
+  - nsmo.vn
+  - moit.gov.vn
+  - chinhphu.vn
+  - vanban.chinhphu.vn
+  - muasamcong.mpi.gov.vn
+  - iea.org
+  - irena.org
+  - nrel.gov
+  - energy.gov
+  - epri.com
+  - entsoe.eu
+  - nist.gov
+
+trusted:    # báo chí chuyên ngành, nhà xuất bản khoa học, cơ sở dữ liệu văn bản
+  - thuvienphapluat.vn
+  - baodauthau.vn
+  - tapchicongthuong.vn
+  - nangluongvietnam.vn
+  - vietnamenergy.vn
+  - icon.com.vn
+  - vneconomy.vn
+  - vnexpress.net
+  - tuoitre.vn
+  - nhandan.vn
+  - vietnamnews.vn
+  - theinvestor.vn
+  - tdworld.com
+  - transformers-magazine.com
+  - transformer-technology.com
+  - utilitydive.com
+  - energy-storage.news
+  - pv-magazine.com
+  - powerengineeringint.com
+  - arxiv.org
+  - mdpi.com
+  - sciencedirect.com
+  - springer.com
+  - link.springer.com
+  - nature.com
+  - wiley.com
+  - onlinelibrary.wiley.com
+  - iet.org
+  - ietresearch.onlinelibrary.wiley.com
+  - researchgate.net
+  - doi.org
+  - openalex.org
+  - hrcak.srce.hr
+
+vendors:    # tên hãng (nhận diện trong câu hỏi) → website chính thức (tự sinh truy vấn site:)
+  Hitachi Energy: [hitachienergy.com]
+  Hitachi: [hitachienergy.com]
+  ABB: [new.abb.com, abb.com]
+  Siemens Energy: [siemens-energy.com]
+  Siemens: [siemens-energy.com, siemens.com]
+  GE Vernova: [gevernova.com]
+  GE: [gevernova.com]
+  Maschinenfabrik Reinhausen: [reinhausen.com]
+  Reinhausen: [reinhausen.com]
+  MR: [reinhausen.com]
+  Qualitrol: [qualitrolcorp.com]
+  Doble: [doble.com]
+  Camlin: [camlingroup.com]
+  Omicron: [omicronenergy.com]
+  Megger: [megger.com]
+  Vaisala: [vaisala.com]
+  Weidmann: [weidmann-group.com]
+  Schneider: [se.com]
+  Eaton: [eaton.com]
+  Hyosung: [hyosungheavyindustries.com]
+  LS Electric: [ls-electric.com]
+  Seiko Electric: [seiko-denki.co.jp]
+  Mitsubishi Electric: [mitsubishielectric.com]
+  Toshiba: [toshiba-energy.com]
+  Sensoptic: [sensoptic.ch]
+  LumaSense: [advancedenergy.com]
+  Advanced Energy: [advancedenergy.com]
+  Luna: [lunainc.com]
+  AP Sensing: [apsensing.com]
+  Yokogawa: [yokogawa.com]
+  Bentley: [bentley.com]
+  AVEVA: [aveva.com]
+  Tesla: [tesla.com]
+  Fluence: [fluenceenergy.com]
+  Wärtsilä: [wartsila.com]
+  Sungrow: [sungrowpower.com]
+  CATL: [catl.com]
+  Huawei: [solar.huawei.com, huawei.com]
+  NARI: [naritech.cn]
+  XJ Electric: [xjec.com]
+  EVN: [evn.com.vn]
+  EVNNPT: [npt.com.vn]

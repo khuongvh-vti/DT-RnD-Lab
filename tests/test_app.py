@@ -102,8 +102,46 @@ def test_kb_entity_coverage_and_direct_answer():
     s = yaml.safe_load((ROOT / "config/settings.yaml").read_text(encoding="utf-8"))
     t = yaml.safe_load((ROOT / "config/team.yaml").read_text(encoding="utf-8"))
     f = Fake()
-    out = Director(t, s, f, kb).ask("IEEE C57.143 bản mới nhất?")
+    boss = Director(t, s, f, kb)
+    boss.web_get = fake_web
+    out = boss.ask("IEEE C57.143 bản mới nhất?")
     assert "báo cáo tuần" in f.prompt and "## Nguồn trong kho" in out and "FS02" in out
+    assert "NGUỒN INTERNET" in f.prompt and "[W1]" in f.prompt and "## Nguồn Internet" in out
+
+
+BING = b"""<?xml version="1.0"?><rss><channel>
+<item><title>IEEE C57.143-2024 Guide for Application of Monitoring Equipment</title><link>https://standards.ieee.org/ieee/C57.143/x</link><description>monitoring guide</description></item>
+<item><title>Blog random</title><link>https://random-blog.example/post</link><description>monitoring guide blog</description></item>
+</channel></rss>"""
+PAGE = (b"<html><head><title>IEEE C57.143-2024</title><script>var x=1</script></head><body><nav>menu</nav>"
+        b"<p>IEEE C57.143-2024 is the guide for application of monitoring equipment to liquid-immersed transformers.</p>"
+        b"<p>Unrelated cookie text that is long enough to be a paragraph but has nothing to do with it.</p></body></html>")
+
+
+def fake_web(url, timeout=20, data=None, accept="*/*"):
+    if "bing.com" in url:
+        return BING, "application/rss+xml"
+    if "duckduckgo" in url or "openalex" in url:
+        raise OSError("blocked")
+    return PAGE, "text/html"
+
+
+def test_web_research_ranking_and_verify(tmp_path):
+    from lab import web as W
+    cfg = W.load_cfg()
+    assert W.tier("https://standards.ieee.org/x", cfg) == "official" and W.tier("https://www.hitachienergy.com/a", cfg) == "official"
+    assert W.tier("https://baodauthau.vn/a", cfg) == "trusted" and W.tier("https://abc.xyz", cfg) == "other"
+    assert W.vendor_domains("so sánh Hitachi Energy và Siemens Energy", cfg)[:2] == ["hitachienergy.com", "siemens-energy.com"]
+    assert W.vendor_domains("change management", cfg) == []  # 'GE' không khớp giữa từ
+    qs = W.build_queries("Hitachi TXpert có những tính năng gì?", "TXpert digital transformer", cfg)
+    assert any(q.startswith("site:hitachienergy.com") for q in qs)
+    assert W.build_queries("Khách hàng ABC trạm X", "transformer DGA", cfg, safe_only_keywords=True)[0] == "transformer DGA"
+    r = W.research("IEEE C57.143 monitoring guide", "monitoring guide", cfg, get=fake_web, cache_dir=tmp_path)
+    assert r.sources[0].tier == "official" and "liquid-immersed" in r.sources[0].excerpt and "var x" not in r.sources[0].excerpt
+    assert any("duckduckgo" in e for e in r.errors)
+    assert "[W1]" in r.context() and "standards.ieee.org" in r.markdown()
+    miss = W.verify_claims("Theo IEEE C57.143-2024 [W1] và IEC 60599, ngưỡng là 150 ppm, hiệu suất 99,5 %.", r.all_text())
+    assert "IEC 60599" in miss and "150 ppm" in miss and not any("C57.143" in m for m in miss)
 
 
 def test_news_collect_classify_and_api():
