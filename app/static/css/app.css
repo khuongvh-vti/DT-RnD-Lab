@@ -161,3 +161,16 @@ pre.log { background: #1E1B3A; color: #E7E7F1; padding: 12px; border-radius: 12p
 .toast.err { background: var(--bad); }
 .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: rot .8s linear infinite; vertical-align: -2px; }
 @keyframes rot { to { transform: rotate(360deg); } }
+
+/* Điện thoại */
+@media (max-width: 600px) {
+  .container { padding: 0 12px; }
+  .header-inner { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .greet { font-size: 21px; }
+  .stat-value { font-size: 22px; }
+  .tab { padding: 7px 11px; font-size: 13px; }
+  .card { padding: 14px; }
+  .msg { max-width: 100%; }
+  .tree-frame { height: calc(100vh - 190px); }
+  .hero .row .btn { flex: 1 1 100%; }
+}

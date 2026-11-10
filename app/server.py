@@ -24,6 +24,14 @@ from lab import site_content as C  # noqa: E402
 from lab.physics import dga, scl, transformer_thermal as th  # noqa: E402
 
 PORT = int(os.environ.get("DT_PORT", "8766"))
+REMOTE_CFG = Path(__file__).resolve().parents[1] / "data" / "remote.json"  # bật truy cập từ điện thoại (scripts/enable_phone.sh)
+
+
+def remote_cfg() -> dict:
+    try:
+        return json.loads(REMOTE_CFG.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 STATIC = ROOT / "app" / "static"
 DATA = ROOT / "data"
 LIB = ROOT / "library"
@@ -223,9 +231,42 @@ class Handler(BaseHTTPRequestHandler):
         b = self.body()
         return json.loads(b.decode("utf-8")) if b else {}
 
+    # ---------------- bảo vệ khi mở cho điện thoại: máy khác phải có mã truy cập
+    def authorized(self, u) -> bool:
+        if self.client_address[0] in ("127.0.0.1", "::1"):
+            return True
+        token = remote_cfg().get("token")
+        if not token:
+            return False
+        q = dict(urllib.parse.parse_qsl(u.query))
+        cookie = self.headers.get("Cookie", "")
+        if q.get("key") == token:
+            self._set_cookie = f"dtkey={token}; Path=/; Max-Age=31536000; SameSite=Strict; HttpOnly"
+            return True
+        return f"dtkey={token}" in cookie
+
+    def deny(self):
+        body = ("<html><meta name=viewport content='width=device-width'><body style='font-family:sans-serif;padding:24px'>"
+                "<h3>DT-RnD-Lab</h3><p>Cần mã truy cập. Mở đúng đường link có <code>?key=…</code> "
+                "mà lệnh <code>bash scripts/enable_phone.sh</code> in ra trên máy Mac.</p></body></html>").encode()
+        self.send_response(401)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def end_headers(self):
+        c = getattr(self, "_set_cookie", None)
+        if c:
+            self.send_header("Set-Cookie", c)
+            self._set_cookie = None
+        super().end_headers()
+
     # ---------------- GET
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
+        if not self.authorized(u):
+            return self.deny()
         q = dict(urllib.parse.parse_qsl(u.query))
         try:
             if u.path in ("/", "/index.html"):
@@ -284,6 +325,8 @@ class Handler(BaseHTTPRequestHandler):
     # ---------------- POST
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
+        if not self.authorized(u):
+            return self.deny()
         q = dict(urllib.parse.parse_qsl(u.query))
         try:
             if u.path == "/api/ask":
@@ -372,7 +415,8 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     DATA.mkdir(exist_ok=True)
     start_job("ingest", job_ingest)  # tự nạp tài liệu mới trong library/ mỗi lần server khởi động
-    srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    host = "0.0.0.0" if remote_cfg().get("token") else "127.0.0.1"
+    srv = ThreadingHTTPServer((host, PORT), Handler)
     print(f"DT-RnD-Lab đang chạy: http://localhost:{PORT}")
     srv.serve_forever()
 

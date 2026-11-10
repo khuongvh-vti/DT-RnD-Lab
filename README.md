@@ -52,7 +52,9 @@ Chạy tự động 8:00 thứ Hai: xem hướng dẫn trong `scripts/com.vticor
 | 📚 Kho tài liệu | Kéo thả PDF vào `library/`, nạp embedding |
 | ⚙️ Hệ thống | Trạng thái Ollama, model, cloud miễn phí |
 
-Port 8766 (EnglishCoach dùng 8765 nên hai app chạy song song được). Server chỉ nghe `127.0.0.1`.
+Port 8766 (EnglishCoach dùng 8765 nên hai app chạy song song được). Mặc định server chỉ nghe `127.0.0.1`.
+
+**Mở trên điện thoại:** `bash scripts/enable_phone.sh` → server mở cho mạng (yêu cầu mã truy cập), in link `http://<tên-mac>.local:8766/?key=…`. Điện thoại cùng Wi-Fi mở link 1 lần là nhớ. Ra ngoài: cài Tailscale trên Mac + điện thoại. Tắt: `bash scripts/enable_phone.sh --off`.
 
 ## Chế độ hybrid – ưu tiên model MIỄN PHÍ
 Model local (`qwen3.5:9b`) có giới hạn suy luận. Vì vậy các vai trò cần suy luận sâu (`director`, `physics`, `standards`,
