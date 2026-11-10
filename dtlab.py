@@ -8,7 +8,7 @@
   python3 dtlab.py ask "câu hỏi"          # hỏi nhanh, Trưởng phòng định tuyến tới chuyên viên
   python3 dtlab.py thermal --load 1.2 --ambient 35   # thử mô hình nhiệt IEC 60076-7
   python3 dtlab.py scl path/to/station.scd   # dựng khung Substation DT từ file SCD (IEC 61850-6)
-  python3 dtlab.py serve                  # mở trang sơ đồ cây tại http://localhost:8765
+  python3 dtlab.py serve                  # mở ứng dụng web DT-RnD-Lab tại http://localhost:8766
   python3 dtlab.py free-models            # liệt kê model ':free' hiện có trên OpenRouter
   python3 dtlab.py dga --h2 100 --ch4 120 --c2h2 1 --c2h4 50 --c2h6 65
 """
@@ -71,7 +71,7 @@ def main():
     sc = sub.add_parser("scl"); sc.add_argument("path")
     sub.add_parser("free-models")
     sub.add_parser("site")
-    sv = sub.add_parser("serve"); sv.add_argument("--port", type=int, default=8765)
+    sv = sub.add_parser("serve"); sv.add_argument("--port", type=int, default=8766)
     d = sub.add_parser("dga")
     for g in ("h2", "ch4", "c2h2", "c2h4", "c2h6"):
         d.add_argument(f"--{g}", type=float, required=True)
@@ -126,8 +126,16 @@ def main():
         from lab.site import build
         print("Đã dựng:", build())
     elif args.cmd == "serve":
-        from lab.site import serve
-        serve(args.port)
+        import os, webbrowser
+        os.environ["DT_PORT"] = str(args.port)
+        sys.path.insert(0, str(Path(__file__).resolve().parent / "app"))
+        import server as app_server
+        app_server.PORT = args.port
+        try:
+            webbrowser.open(f"http://localhost:{args.port}")
+        except Exception:
+            pass
+        app_server.main()
     elif args.cmd == "free-models":
         # Liệt kê model miễn phí hiện có trên OpenRouter để cập nhật config (danh mục free thay đổi thường xuyên)
         import json, urllib.request

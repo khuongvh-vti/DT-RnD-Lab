@@ -8,3 +8,5 @@ library/**/*.pdf
 library/**/*.docx
 library/06_vti_data/**
 .pytest_cache/
+data/*.json
+data/upload.scd

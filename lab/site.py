@@ -1,7 +1,7 @@
 """Dựng trang web sơ đồ cây của Phòng R&D (một file HTML tự chứa) và phục vụ qua HTTP local.
 
   python3 dtlab.py site    → web/dist/index.html
-  python3 dtlab.py serve   → dựng rồi mở http://localhost:8765
+  python3 dtlab.py serve   → dựng rồi mở http://localhost:8766
 """
 from __future__ import annotations
 
@@ -146,7 +146,7 @@ def build(out_dir: Path = DIST) -> Path:
     return path
 
 
-def serve(port: int = 8765, open_browser: bool = True):
+def serve(port: int = 8766, open_browser: bool = True):
     import functools
     import http.server
     import webbrowser

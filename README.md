@@ -36,11 +36,23 @@ python3 dtlab.py dga --h2 100 --ch4 120 --c2h2 1 --c2h4 50 --c2h6 65
 ```
 Chạy tự động 8:00 thứ Hai: xem hướng dẫn trong `scripts/com.vticorp.dtlab.weekly.plist`.
 
-## Trang sơ đồ cây
-```bash
-python3 dtlab.py serve      # mở http://localhost:8765 – cây tri thức, bấm nút để xem chi tiết, có phòng làm việc minh họa
-```
-Nội dung tri thức nằm trong `lab/site_content.py`; mọi file `.md` trong `reports/` tự thành nhánh của cây.
+## Ứng dụng web trên Chrome (giống EnglishCoach) – http://localhost:8766
+- **Mở nhanh:** nhấp đúp `Mo DT-RnD-Lab.command` (tự bật Ollama + server nếu chưa chạy, rồi mở Chrome).
+- **Luôn chạy nền khi đăng nhập Mac + vòng nghiên cứu 08:00 thứ Hai:** `bash scripts/install_app.sh` (gỡ: `--uninstall`).
+- Hoặc từ Terminal: `python3 dtlab.py serve`.
+
+| Tab | Chức năng |
+|---|---|
+| 🏠 Hôm nay | Giai đoạn hiện tại & % tiến độ, phòng làm việc minh họa (bấm người để hỏi), số liệu kho, báo cáo mới nhất, nút chạy vòng tuần |
+| 🌳 Sơ đồ cây | Cây tri thức: bấm nút để xem chi tiết; mọi `.md` trong `reports/` tự thành nhánh |
+| 🤖 Hỏi phòng R&D | Hỏi Trưởng phòng hoặc từng chuyên viên (RAG + Qwen), lưu lịch sử |
+| 📑 Báo cáo | Đọc mọi báo cáo tuần |
+| 👥 Nhân sự | 8 thành viên: phạm vi, tài liệu gốc, câu hỏi thường trực |
+| 🧮 Công cụ | Nhiệt MBA IEC 60076-7 (đồ thị θh/θo, loss of life), DGA Duval/IEC 60599, đọc SCD IEC 61850-6 |
+| 📚 Kho tài liệu | Kéo thả PDF vào `library/`, nạp embedding |
+| ⚙️ Hệ thống | Trạng thái Ollama, model, cloud miễn phí |
+
+Port 8766 (EnglishCoach dùng 8765 nên hai app chạy song song được). Server chỉ nghe `127.0.0.1`.
 
 ## Chế độ hybrid – ưu tiên model MIỄN PHÍ
 Model local (`qwen3.5:9b`) có giới hạn suy luận. Vì vậy các vai trò cần suy luận sâu (`director`, `physics`, `standards`,

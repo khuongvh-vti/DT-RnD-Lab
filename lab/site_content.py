@@ -317,7 +317,7 @@ tools = N("cong-cu", "Công cụ & hạ tầng của phòng", "report", "ot_cybe
     N("cc-vat-ly", "Lõi kỹ thuật: nhiệt, DGA, SCD", "tool", "physics",
       "<p><code>transformer_thermal.py</code> (IEC 60076-7, lão hóa, tải tối đa) · <code>dga.py</code> (Duval 1, IEC 60599) · <code>scl.py</code> (đọc SCD IEC 61850-6, lọc LN giám sát tình trạng).</p>"),
     N("cc-web", "Trang sơ đồ cây (trang này)", "tool", "director",
-      "<p>Chạy local: <code>python3 dtlab.py serve</code> rồi mở http://localhost:8765. Mỗi báo cáo mới trong <code>reports/</code> tự thành một nhánh của cây.</p>"),
+      "<p>Chạy local: <code>python3 dtlab.py serve</code> rồi mở http://localhost:8766. Mỗi báo cáo mới trong <code>reports/</code> tự thành một nhánh của cây.</p>"),
     N("cc-lich", "Lịch báo cáo", "tool", "director",
       "<p>Sáng thứ Hai hằng tuần: Qwen local chạy vòng nghiên cứu (launchd 8:00) và Claude tổng hợp nghiên cứu web (7:37), đẩy lên GitHub và Project.</p>"),
 ])

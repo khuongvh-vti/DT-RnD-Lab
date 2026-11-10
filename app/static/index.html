@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DT-RnD-Lab – Phòng nghiên cứu Digital Twin</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container header-inner">
+      <a class="logo" href="#today">⚡ <b>DT-RnD</b>-Lab</a>
+      <div class="header-chips">
+        <span id="phase-chip" class="phase-chip" title="Giai đoạn nghiên cứu hiện tại">GĐ…</span>
+        <span id="engine-chip" class="engine-chip" title="Model đang dùng">🧠 …</span>
+        <span id="job-chip" class="job-chip" hidden>⏳ 0</span>
+      </div>
+    </div>
+    <nav id="tabs" class="tabs container">
+      <button class="tab" data-tab="today">🏠 Hôm nay</button>
+      <button class="tab" data-tab="tree">🌳 Sơ đồ cây</button>
+      <button class="tab" data-tab="ask">🤖 Hỏi phòng R&amp;D</button>
+      <button class="tab" data-tab="reports">📑 Báo cáo</button>
+      <button class="tab" data-tab="team">👥 Nhân sự</button>
+      <button class="tab" data-tab="tools">🧮 Công cụ</button>
+      <button class="tab" data-tab="library">📚 Kho tài liệu</button>
+      <button class="tab" data-tab="settings">⚙️ Hệ thống</button>
+    </nav>
+  </header>
+  <main id="view" class="container"></main>
+  <div id="toast-root"></div>
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
