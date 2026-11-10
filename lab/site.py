@@ -27,6 +27,9 @@ def _inline(s: str) -> str:
     s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
     s = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<i>\1</i>", s)
     s = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r'<a href="\2" target="_blank" rel="noopener">\1</a>', s)
+    # URL trần → link bấm được (bỏ qua URL đã nằm trong thẻ <a>)
+    s = re.sub(r'(?<!href=")(?<!">)(https?://[^\s<>"]+[^\s<>".,;:)])',
+               r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
     return s
 
 
