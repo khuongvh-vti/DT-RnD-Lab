@@ -11,6 +11,7 @@ import email.utils
 import html
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -47,10 +48,20 @@ def arxiv_url(q: str) -> str:
         {"search_query": q, "sortBy": "submittedDate", "sortOrder": "descending", "max_results": 15})
 
 
+_DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def fetch(url: str, timeout: int = 20) -> bytes:
+    """Tải RSS. Nếu proxy hệ thống/công ty chặn (403 Tunnel, ProxyError) thì thử lại kết nối trực tiếp, và ngược lại."""
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/rss+xml, application/xml, */*"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.read()
+    except (urllib.error.URLError, OSError) as e:
+        if isinstance(e, urllib.error.HTTPError) and e.code not in (403, 407):
+            raise
+        with _DIRECT.open(req, timeout=timeout) as r:  # bỏ qua proxy
+            return r.read()
 
 
 def _text(el, *names) -> str:

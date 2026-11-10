@@ -256,6 +256,28 @@ def cycle_due(now: dt.datetime | None = None) -> bool:
     return (now.date() - dt.datetime.fromtimestamp(last).date()).days >= int(c["every_days"])
 
 
+def _code_mtime() -> float:
+    files = [ROOT / "app" / "server.py", *(ROOT / "lab").rglob("*.py")]
+    return max((f.stat().st_mtime for f in files if f.exists()), default=0.0)
+
+
+CODE_MTIME = _code_mtime()
+
+
+def code_watcher():
+    """Tự khởi động lại server khi code Python thay đổi (sau khi đồng bộ bản mới) – chờ job đang chạy xong."""
+    import time
+    while True:
+        time.sleep(5)
+        try:
+            if _code_mtime() > CODE_MTIME + 1 and not any(j["state"] == "running" for j in JOBS.values()):
+                time.sleep(2)  # đợi giải nén xong
+                print("Code thay đổi → khởi động lại server", file=sys.stderr, flush=True)
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+        except Exception:
+            pass
+
+
 def cycle_scheduler():
     import time
     while True:
@@ -435,8 +457,8 @@ class Handler(BaseHTTPRequestHandler):
                 if STATIC.resolve() not in p.parents or not p.is_file():
                     return self.send_json({"error": "not_found"}, 404)
                 return self.send_bytes(p.read_bytes(), MIME.get(p.suffix, "application/octet-stream"))
-            if u.path == "/api/health":
-                return self.send_json({"ok": True})
+            if u.path == "/api/health":  # code_version để launcher biết server đang chạy bản cũ
+                return self.send_json({"ok": True, "code_version": int(CODE_MTIME), "features": ["modules", "cycle", "news"]})
             if u.path == "/api/status":
                 return self.send_json(self.status())
             if u.path == "/api/team":
@@ -608,6 +630,7 @@ def main():
     start_job("ingest", job_ingest)  # tự nạp tài liệu mới trong library/ mỗi lần server khởi động
     threading.Thread(target=news_scheduler, daemon=True).start()  # bản tin năng lượng hằng ngày
     threading.Thread(target=cycle_scheduler, daemon=True).start()  # báo cáo nghiên cứu mỗi 3 ngày
+    threading.Thread(target=code_watcher, daemon=True).start()  # tự nạp bản code mới
     host = "0.0.0.0" if remote_cfg().get("token") else "127.0.0.1"
     srv = ThreadingHTTPServer((host, PORT), Handler)
     print(f"VTI R&D Lab đang chạy: http://localhost:{PORT}")

@@ -2,10 +2,12 @@
 export const $ = (s, r = document) => r.querySelector(s);
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+const OLD_SERVER = "Server đang chạy bản cũ – hãy tắt và mở lại app (nhấp đúp “Mo DT-RnD-Lab.command”) để nạp bản mới.";
+
 export async function get(path) {
   const r = await fetch(path);
   const j = await r.json();
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw new Error(j.error === "not_found" && path.startsWith("/api/") ? OLD_SERVER : (j.error || r.statusText));
   return j;
 }
 
@@ -16,7 +18,7 @@ export async function post(path, body, raw = false) {
     body: raw ? body : JSON.stringify(body || {}),
   });
   const j = await r.json();
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw new Error(j.error === "not_found" ? OLD_SERVER : (j.error || r.statusText));
   return j;
 }
 
