@@ -50,9 +50,10 @@ def md_to_html(md: str) -> str:
                        + "".join("<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in r) + "</tr>" for r in rows)
                        + "</table>")
             continue
-        m = re.match(r"^(#{3,6})\s+(.*)", ln)
+        m = re.match(r"^(#{1,6})\s+(.*)", ln)
         if m:
-            out.append(f"<h4>{_inline(m.group(2))}</h4>")
+            tag = "h2" if len(m.group(1)) <= 2 else "h4"
+            out.append(f"<{tag}>{_inline(m.group(2))}</{tag}>")
             i += 1
             continue
         if re.match(r"^\s*([-*]|\d+\.)\s+", ln):
@@ -66,6 +67,13 @@ def md_to_html(md: str) -> str:
             tag = "ol" if ordered else "ul"
             out.append(f"<{tag}>{''.join(items)}</{tag}>")
             continue
+        if ln.lstrip().startswith(">"):
+            q = []
+            while i < len(lines) and lines[i].lstrip().startswith(">"):
+                q.append(lines[i].lstrip()[1:].strip())
+                i += 1
+            out.append(f"<blockquote>{_inline(' '.join(q))}</blockquote>")
+            continue
         if ln.startswith("```"):
             i += 1
             code = []
@@ -77,7 +85,7 @@ def md_to_html(md: str) -> str:
             continue
         para = [ln]
         i += 1
-        while i < len(lines) and lines[i].strip() and not re.match(r"^(#|\||\s*[-*]\s|\s*\d+\.\s|```)", lines[i]):
+        while i < len(lines) and lines[i].strip() and not re.match(r"^(#|>|\||\s*[-*]\s|\s*\d+\.\s|```)", lines[i]):
             para.append(lines[i].strip())
             i += 1
         out.append(f"<p>{_inline(' '.join(para))}</p>")
