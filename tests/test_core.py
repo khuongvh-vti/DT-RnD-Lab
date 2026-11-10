@@ -62,12 +62,55 @@ def test_director_week(tmp_path):
     kb = KnowledgeBase(str(tmp_path / "kb.sqlite"), FakeLLM())
     assert kb.ingest(str(lib), log=lambda *_: None) > 0
     assert kb.search("hot-spot thermal model")
-    boss = Director(t, s, FakeLLM(), kb)
-    path = boss.run_week("test")
-    assert path.exists()
-    plan = json.loads((path.parent / "00_ke_hoach_tuan.json").read_text(encoding="utf-8"))
-    assert {p["member"] for p in plan} == set(t["members"])  # ai cũng có việc
-    assert "Báo cáo tuần" in path.read_text(encoding="utf-8")
+    from lab import modules as M
+    mods = M.load()
+    boss = Director(t, s, FakeLLM(), kb, modules=mods)
+    path = boss.run_cycle("test", new_docs=["01_standards/x.pdf"], highlights="- tin A")
+    assert path.exists() and path.name == "BAO_CAO_3_NGAY.md"
+    plan = json.loads((path.parent / "00_ke_hoach.json").read_text(encoding="utf-8"))
+    active = [m for m, v in mods.items() if v["status"] == "active"]
+    assert set(plan) == set(active)  # chỉ module đang nghiên cứu
+    for mid in active:  # chuyên viên riêng nào của module cũng có việc
+        assert set(mods[mid]["members"]) <= {p["member"] for p in plan[mid]}
+        assert (path.parent / mid).is_dir()
+    text = path.read_text(encoding="utf-8")
+    assert "Báo cáo 3 ngày" in text and "Trạng thái các module" in text
+    # chỉ chạy 1 module theo yêu cầu
+    p2 = boss.run_cycle(modules=["bess"], day="2026-11-13")
+    assert json.loads((p2.parent / "00_ke_hoach.json").read_text(encoding="utf-8")).keys() == {"bess"}
+
+
+def test_modules_roster_and_create(tmp_path):
+    from lab import modules as M
+    t = yaml.safe_load((ROOT / "config/team.yaml").read_text(encoding="utf-8"))
+    mods = M.load()
+    r = M.roster(t, mods)
+    assert "physics" in r and r["physics"]["module"] == "dt" and r["standards"]["module"] == "shared"
+    assert len(r) == len(set(r))  # key duy nhất
+    assert M.phase_now(mods["dt"], "2027-02-01")["code"] == "GĐ3"
+    path = tmp_path / "modules.yaml"
+    M.save(mods, path)
+    # không có Qwen → khung mặc định
+    mid = M.create({"name": "Điện gió ngoài khơi", "goal": "Hiểu OWF", "questions": "Q1?\nQ2?", "references": "IEC 61400-25",
+                    "deadline": "2027-06-30"}, t, llm=None, log=lambda *_: None, path=path, root=tmp_path)
+    assert mid == "dien_gio_ngoai_khoi"
+    m2 = M.load(path)[mid]
+    assert len(m2["members"]) == 2 and len(m2["phases"]) == 3 and m2["phases"][-1]["end"] == "2027-06-30"
+    assert (tmp_path / "library" / f"m_{mid}" / "README.md").exists()
+    assert (tmp_path / "reports" / "modules" / mid / "00_GIOI_THIEU_MODULE.md").exists()
+
+    class L:  # Qwen trả JSON có key trùng → phải đổi tên
+        def chat_json(self, *a, **k):
+            return {"members": {"physics": {"name": "Chuyên viên X", "scope": "s", "references": ["IEC 1"], "standing_questions": ["q"]},
+                                "wind_grid": {"name": "Chuyên viên Y", "scope": "s2"}},
+                    "phases": [{"code": "GĐ1", "name": "A", "start": "2026-12-01", "end": "2027-01-01"}],
+                    "questions": ["Q?"], "keywords": ["offshore wind"], "shared": ["standards", "khong_co"]}
+    mid2 = M.create({"name": "Điện gió ngoài khơi", "goal": "g"}, t, llm=L(), log=lambda *_: None, path=path, root=tmp_path)
+    m3 = M.load(path)[mid2]
+    assert mid2 == "dien_gio_ngoai_khoi_2" and "physics" not in m3["members"] and f"{mid2}_physics" in m3["members"]
+    assert m3["shared"] == ["standards"] and m3["keywords"] == ["offshore wind"]
+    M.set_status(mid2, "paused", path)
+    assert M.load(path)[mid2]["status"] == "paused"
 
 
 def test_scl_parse():

@@ -1,11 +1,14 @@
-// DT-RnD-Lab — router các tab (cùng kiểu EnglishCoach) + các màn hình
+// VTI R&D Lab — router các tab (cùng kiểu EnglishCoach) + các màn hình. Phòng R&D đa module (DT là module đầu tiên).
 import { $, esc, get, post, toast, waitJob, fmtDate } from "./api.js";
 import { drawOffice, avatar } from "./office.js";
 
 const view = () => $("#view");
 let TEAM = [];
 let STATUS = null;
+let MODS = [];
 let askAgent = null; // agent đang chọn ở tab Hỏi
+let askModule = ""; // module đang chọn ở tab Hỏi ("" = cả phòng)
+const STATUS_PILL = { active: "ok", standby: "warn", paused: "" };
 
 function page(html) {
   view().innerHTML = `<div class="page">${html}</div>`;
@@ -19,8 +22,8 @@ function greetWord() {
 async function refreshChips() {
   try {
     STATUS = await get("/api/status");
-    const p = STATUS.phase;
-    $("#phase-chip").textContent = `🧭 ${p.code} · ${p.name}`;
+    const m = STATUS.modules || { active: 0, total: 0 };
+    $("#phase-chip").textContent = `🧩 ${m.active}/${m.total} module đang nghiên cứu`;
     const eng = STATUS.ollama_ok ? STATUS.chat_model : "Ollama chưa chạy";
     $("#engine-chip").textContent = `🧠 ${eng}${STATUS.cloud.enabled ? " + ☁️" : ""}`;
     $("#job-chip").hidden = !STATUS.jobs_running;
@@ -29,81 +32,179 @@ async function refreshChips() {
 }
 
 // ------------------------------------------------------------ 🏠 Hôm nay
+function modCard(m, compact = false) {
+  const p = m.phase;
+  return `<div class="card click mod-card" data-m="${esc(m.id)}">
+    <div class="card-head"><h3>${esc(m.icon || "🧪")} ${esc(m.name)}</h3><span class="pill ${STATUS_PILL[m.status] || ""}">${esc(m.status_vi)}</span></div>
+    <div class="small"><b>${esc(p.code)} · ${esc(p.name)}</b> <span class="muted">(${fmtDate(p.start)} → ${fmtDate(p.end)})</span></div>
+    <div class="bar" style="margin:8px 0"><i style="width:${Math.round(p.pct * 100)}%"></i></div>
+    ${compact ? "" : `<p class="small muted" style="margin:6px 0">${esc((m.goal || "").slice(0, 170))}${(m.goal || "").length > 170 ? "…" : ""}</p>`}
+    <div class="small muted">👥 ${m.members.length} chuyên viên riêng · 📚 ${m.docs} tài liệu</div></div>`;
+}
+
 async function today() {
   page(`<p class="muted">Đang tải…</p>`);
-  const [st, reports] = await Promise.all([get("/api/status"), get("/api/reports")]);
-  STATUS = st;
-  const p = st.phase;
-  const now = new Date().toISOString().slice(0, 10);
-  const last = reports[0];
+  const [st, reports, mods] = await Promise.all([get("/api/status"), get("/api/reports"), get("/api/modules")]);
+  STATUS = st; MODS = mods;
+  const active = mods.filter(m => m.status === "active");
+  const cyc = reports.find(r => r.path.includes("/cycles/"));
+  const last = cyc || reports[0];
+  const office = TEAM.filter(p => p.key === "director" || p.module === "shared" || active.some(m => m.id === p.module));
   page(`
     <div class="card hero">
       <h1 class="greet">${greetWord()} anh Khương đẹp trai 👋</h1>
-      <p>Phòng R&amp;D Digital Twin đang ở <b>${p.code} – ${esc(p.name)}</b> (${fmtDate(p.start)} → ${fmtDate(p.end)}).</p>
-      <div class="bar"><i style="width:${Math.round(p.pct * 100)}%"></i></div>
-      <p class="small">${Math.round(p.pct * 100)}% thời gian giai đoạn · còn ${p.days_left} ngày · mục tiêu: hiểu sâu hệ thống Transformer DT &amp; Substation DT trước khi làm sản phẩm.</p>
+      <p>Phòng R&amp;D Năng lượng &amp; Công nghệ có <b>${mods.length} module</b>, trong đó <b>${active.length} đang nghiên cứu</b>: ${active.map(m => esc(m.icon + " " + m.name)).join(", ") || "—"}.</p>
+      <p class="small">Mỗi 3 ngày Trưởng phòng tự chạy một chu kỳ cho các module đang hoạt động và gửi anh <b>Báo cáo 3 ngày</b> – chỉ gồm những gì mới nghiên cứu/bổ sung.</p>
       <div class="row" style="margin-top:12px">
         <button class="btn" id="go-ask">🤖 Hỏi phòng R&amp;D</button>
-        <button class="btn" id="go-week">🗓 Chạy vòng nghiên cứu tuần</button>
-        <button class="btn" id="go-tree">🌳 Mở sơ đồ cây</button>
+        <button class="btn" id="go-week">🗓 Chạy chu kỳ ngay</button>
+        <button class="btn" id="go-mod">➕ Mở module mới</button>
+        <button class="btn" id="go-tree">🌳 Sơ đồ cây</button>
       </div>
     </div>
 
+    <h2 class="section-h">🧩 Các module nghiên cứu</h2>
+    <div class="grid g3">${mods.map(m => modCard(m)).join("")}</div>
+
     <div class="card scene-wrap" style="margin-top:16px"><div id="office"></div></div>
-    <p class="small muted" style="margin:6px 4px">Bấm vào một người để giao câu hỏi trực tiếp cho người đó.</p>
+    <p class="small muted" style="margin:6px 4px">Nhân sự các module đang hoạt động + khối dùng chung (🤝). Bấm vào một người để hỏi trực tiếp.</p>
 
     <div class="grid g4" style="margin-top:12px">
       <div class="card stat"><div class="stat-value">${st.reports}</div><div class="stat-label">Báo cáo đã có</div></div>
       <div class="card stat"><div class="stat-value">${st.kb.documents}</div><div class="stat-label">Tài liệu trong kho (${st.kb.chunks} đoạn)</div></div>
       <div class="card stat"><div class="stat-value">${st.ollama_ok ? "✅" : "⚠️"}</div><div class="stat-label">${st.ollama_ok ? "Qwen local sẵn sàng" : "Ollama chưa chạy"}</div></div>
-      <div class="card stat"><div class="stat-value">${st.cloud.enabled ? "☁️" : "🔒"}</div><div class="stat-label">${st.cloud.enabled ? "Cloud miễn phí: bật" : "Chỉ chạy local"}</div></div>
+      <div class="card stat"><div class="stat-value">${TEAM.length}</div><div class="stat-label">Nhân sự AI (${TEAM.filter(p => p.module === "shared").length} dùng chung)</div></div>
     </div>
-
-    <h2 class="section-h">🧭 Lộ trình nghiên cứu 5 giai đoạn</h2>
-    <div class="phases">${p.all.map(x => `
-      <div class="phase ${x.code === p.code ? "now" : x.end < now ? "done" : ""}">
-        <b>${x.code} · ${esc(x.name)}</b><span class="small muted">${fmtDate(x.start)} → ${fmtDate(x.end)}</span>
-      </div>`).join("")}</div>
 
     <h2 class="section-h">🎯 Cơ hội hôm nay từ bản tin năng lượng</h2>
     <div id="dash-news" class="list"><div class="card muted small">Đang tải…</div></div>
 
-    <h2 class="section-h">📑 Báo cáo mới nhất</h2>
+    <h2 class="section-h">📑 ${cyc ? "Báo cáo 3 ngày mới nhất" : "Báo cáo mới nhất"}</h2>
     ${last ? `<div class="card click" id="last-rep"><div class="card-head"><h3>${esc(last.title)}</h3><div class="row"><span class="pill">${esc(last.week)}</span><a class="btn" id="last-docx" href="/api/report.docx?path=${encodeURIComponent(last.path)}" download>📄 Word</a></div></div>
-      <div class="small muted">Cập nhật ${esc(last.mtime)} · bấm để đọc</div></div>` : `<div class="card muted">Chưa có báo cáo. Bấm “Chạy vòng nghiên cứu tuần”.</div>`}
+      <div class="small muted">Cập nhật ${esc(last.mtime)} · bấm để đọc</div></div>` : `<div class="card muted">Chưa có báo cáo. Bấm “Chạy chu kỳ ngay”.</div>`}
   `);
   get("/api/news").then(r => {
     const box = $("#dash-news");
     if (!box) return;
     const d = r.digest;
-    if (!d) { box.innerHTML = '<div class="card small muted">Chưa có bản tin – vào tab 📰 Tin tức &amp; Cơ hội để cập nhật.</div>'; return; }
+    if (!d || !d.items.length) { box.innerHTML = '<div class="card small muted">Chưa có tin – vào tab 📰 Tin tức &amp; Cơ hội để cập nhật.</div>'; return; }
     const top = d.items.filter(x => x.is_opportunity).slice(0, 4);
     box.innerHTML = (top.length ? top : d.items.slice(0, 4)).map(x => `<a class="list-item" href="${esc(x.link)}" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)">
       <div><b>${esc(x.title)}</b><div class="small muted">${esc(x.publisher)} · ${esc(x.category_vi)}</div></div><span class="pill">${x.score}</span></a>`).join("")
       + `<a class="small" href="#news">Xem đủ ${d.items.length} tin ngày ${d.date} →</a>`;
   }).catch(() => {});
-  drawOffice($("#office"), TEAM, pk => { askAgent = pk.key === "director" ? null : pk.key; location.hash = "ask"; });
+  drawOffice($("#office"), office, pk => { askAgent = pk.key === "director" ? null : pk.key; askModule = pk.module && !["shared", "director"].includes(pk.module) ? pk.module : ""; location.hash = "ask"; });
+  view().querySelectorAll(".mod-card").forEach(c => c.onclick = () => (location.hash = "modules:" + c.dataset.m));
   $("#go-ask").onclick = () => (location.hash = "ask");
   $("#go-tree").onclick = () => (location.hash = "tree");
-  $("#go-week").onclick = runWeek;
+  $("#go-mod").onclick = () => (location.hash = "modules:new");
+  $("#go-week").onclick = () => runCycle();
   if (last) {
     $("#last-rep").onclick = () => (location.hash = "reports:" + encodeURIComponent(last.path));
     $("#last-docx").onclick = e => e.stopPropagation();
   }
 }
 
-async function runWeek() {
-  const focus = prompt("Trọng tâm tuần này (để trống = theo lộ trình):", "") ?? null;
+async function runCycle(modules = []) {
+  const focus = prompt("Trọng tâm chu kỳ này (để trống = theo lộ trình từng module):", "") ?? null;
   if (focus === null) return;
   try {
-    const { job } = await post("/api/week", { focus });
-    toast("Đã giao việc cho cả phòng. Qwen local có thể mất 15–40 phút…");
+    const { job } = await post("/api/cycle", { focus, modules });
+    toast("Đã giao việc cho các module. Qwen local có thể mất 15–60 phút…");
     refreshChips();
     const res = await waitJob(job);
-    toast("✅ Xong báo cáo tuần: " + res.path);
+    toast("✅ Xong báo cáo: " + res.path);
     location.hash = "reports:" + encodeURIComponent(res.path);
-  } catch (e) { toast("Lỗi vòng tuần: " + e.message, true); }
+  } catch (e) { toast("Lỗi chu kỳ nghiên cứu: " + e.message, true); }
   refreshChips();
+}
+
+// ------------------------------------------------------------ 🧩 Module
+const ICONS = ["🧪", "⚡", "🛰", "🌬", "☀️", "🏭", "🔌", "💧", "🤖", "🛡", "📈", "🧠"];
+
+async function modulesView(arg) {
+  MODS = await get("/api/modules");
+  if (arg === "new") return moduleForm();
+  const m = MODS.find(x => x.id === arg);
+  if (!m) {
+    page(`<div class="card hero"><div class="card-head"><h3>🧩 Các module nghiên cứu</h3><button class="btn btn-primary" id="new-mod">➕ Mở module mới</button></div>
+      <p class="small">Mỗi module là một chủ đề nghiên cứu có mục tiêu, lộ trình, nhóm chuyên viên riêng và thư mục tài liệu riêng; dùng chung Trưởng phòng và khối chuyên viên 🤝 (tiêu chuẩn, dữ liệu &amp; AI, OT/an ninh mạng, benchmark, thị trường VN). Module <b>Đang nghiên cứu</b> được đưa vào chu kỳ báo cáo 3 ngày; module <b>Chờ kích hoạt</b> đã có khung, chờ anh đưa nội dung.</p></div>
+      <div class="grid g3" style="margin-top:16px">${MODS.map(x => modCard(x)).join("")}</div>`);
+    $("#new-mod").onclick = () => (location.hash = "modules:new");
+    view().querySelectorAll(".mod-card").forEach(c => c.onclick = () => (location.hash = "modules:" + c.dataset.m));
+    return;
+  }
+  const people = TEAM.filter(p => p.module === m.id);
+  const shared = TEAM.filter(p => (m.shared || []).includes(p.key));
+  const today = new Date().toISOString().slice(0, 10);
+  const li = a => (a || []).map(x => `<li>${esc(x)}</li>`).join("");
+  page(`
+    <div class="card hero">
+      <div class="card-head"><h3 style="font-size:22px">${esc(m.icon)} ${esc(m.name)}</h3><span class="pill ${STATUS_PILL[m.status] || ""}">${esc(m.status_vi)}</span></div>
+      <p>${esc(m.goal)}</p><p class="small"><b>Phạm vi:</b> ${esc(m.scope)}</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="m-ask">🤖 Hỏi module này</button>
+        <button class="btn" id="m-run">🗓 Chạy chu kỳ cho module</button>
+        ${m.status === "active" ? `<button class="btn" data-st="paused">⏸ Tạm dừng</button>` : `<button class="btn btn-primary" data-st="active">▶️ Kích hoạt nghiên cứu</button>`}
+        ${m.status !== "standby" ? `<button class="btn" data-st="standby">💤 Chuyển chờ</button>` : ""}
+        <a class="btn" href="#library:${encodeURIComponent((m.library || [])[0] || "")}">📚 Tài liệu (${m.docs})</a>
+      </div>
+    </div>
+    <h2 class="section-h">🧭 Lộ trình</h2>
+    <div class="phases">${m.phase.all.map(x => `<div class="phase ${x.code === m.phase.code ? "now" : x.end < today ? "done" : ""}"><b>${esc(x.code)} · ${esc(x.name)}</b><span class="small muted">${fmtDate(x.start)} → ${fmtDate(x.end)}</span></div>`).join("")}</div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card"><h3>❓ Câu hỏi nghiên cứu chính</h3><ul class="small">${li(m.questions)}</ul>
+        ${m.keywords?.length ? `<div class="small muted">Từ khóa tra cứu: ${m.keywords.map(esc).join(", ")}</div>` : ""}
+        <div class="small muted" style="margin-top:6px">Thư mục tài liệu: ${(m.library || []).map(x => `<code>library/${esc(x)}</code>`).join(", ")}</div></div>
+      <div class="card"><h3>🤝 Mượn khối dùng chung</h3><div class="agent-picker">${shared.map(p => `<button data-k="${p.key}">${avatar(p, 24)} ${esc(p.name)} · ${esc(p.role)}</button>`).join("") || '<span class="muted small">—</span>'}</div></div>
+    </div>
+    <h2 class="section-h">👥 Chuyên viên riêng của module</h2>
+    <div class="grid g2">${people.map(p => personCard(p)).join("")}</div>`);
+  $("#m-ask").onclick = () => { askModule = m.id; askAgent = null; location.hash = "ask"; };
+  $("#m-run").onclick = () => runCycle([m.id]);
+  view().querySelectorAll("[data-st]").forEach(b => b.onclick = async () => {
+    try { await post("/api/modules/status", { id: m.id, status: b.dataset.st }); toast("Đã cập nhật trạng thái module"); refreshChips(); modulesView(m.id); }
+    catch (e) { toast(e.message, true); }
+  });
+  view().querySelectorAll("button[data-k]").forEach(b => b.onclick = () => { askAgent = b.dataset.k; askModule = m.id; location.hash = "ask"; });
+}
+
+function moduleForm() {
+  const d0 = new Date().toISOString().slice(0, 10);
+  page(`
+    <div class="card">
+      <div class="card-head"><h3>➕ Mở module nghiên cứu mới</h3><a class="btn" href="#modules">← Danh sách module</a></div>
+      <p class="small muted">Anh điền nội dung, Trưởng phòng (Qwen) sẽ tự thiết kế 2–4 chuyên viên riêng, lộ trình giai đoạn, từ khóa tra cứu, tạo thư mục <code>library/m_&lt;module&gt;</code> và bài giới thiệu module trong Báo cáo. Nếu Ollama chưa chạy, app dùng khung mặc định để anh sửa sau.</p>
+      <div class="form-grid">
+        <label class="f">Tên module *<input id="f-name" placeholder="VD: Điện gió ngoài khơi"></label>
+        <label class="f">Biểu tượng<select id="f-icon">${ICONS.map(i => `<option>${i}</option>`).join("")}</select></label>
+        <label class="f">Trạng thái ban đầu<select id="f-status"><option value="active">Đang nghiên cứu</option><option value="standby">Chờ kích hoạt</option></select></label>
+        <label class="f">Bắt đầu<input id="f-start" type="date" value="${d0}"></label>
+        <label class="f">Hạn hoàn thành<input id="f-deadline" type="date"></label>
+      </div>
+      <label class="f">Mục tiêu nghiên cứu *<textarea id="f-goal" style="min-height:70px" placeholder="Muốn hiểu / làm được gì, để phục vụ việc gì của VTI"></textarea></label>
+      <label class="f">Phạm vi (thiết bị, cấp điện áp, khách hàng…)<textarea id="f-scope" style="min-height:60px"></textarea></label>
+      <label class="f">Câu hỏi nghiên cứu chính (mỗi dòng 1 câu)<textarea id="f-questions" style="min-height:80px"></textarea></label>
+      <label class="f">Tiêu chuẩn / tài liệu / hãng cần bám (cách nhau dấu phẩy)<input id="f-refs" placeholder="VD: IEC 61400-25, CIGRE TB …, Vestas, Siemens Gamesa"></label>
+      <div class="row" style="margin-top:12px"><button class="btn btn-primary" id="f-go">🚀 Mở module</button></div>
+      <pre class="log" id="f-log" hidden></pre>
+    </div>`);
+  $("#f-go").onclick = async () => {
+    const v = id => $("#" + id).value.trim();
+    const body = { name: v("f-name"), icon: v("f-icon"), status: v("f-status"), start: v("f-start"), deadline: v("f-deadline"),
+                   goal: v("f-goal"), scope: v("f-scope"), questions: v("f-questions"), references: v("f-refs") };
+    if (!body.name || !body.goal) return toast("Cần nhập tên và mục tiêu module", true);
+    const btn = $("#f-go"), log = $("#f-log");
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang thiết kế module…'; log.hidden = false;
+    try {
+      const { job } = await post("/api/modules", body);
+      const r = await waitJob(job, l => { log.textContent = l.join("\n"); });
+      TEAM = await get("/api/team");
+      toast("✅ Đã mở module " + body.name);
+      refreshChips();
+      location.hash = "modules:" + r.id;
+    } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = "🚀 Mở module"; }
+  };
 }
 
 // ------------------------------------------------------------ 🌳 Sơ đồ cây
@@ -113,12 +214,17 @@ function tree() {
 
 // ------------------------------------------------------------ 🤖 Hỏi phòng R&D
 async function ask() {
-  const hist = await get("/api/chat");
+  const [hist, mods] = await Promise.all([get("/api/chat"), get("/api/modules")]);
+  MODS = mods;
   const who = k => TEAM.find(p => p.key === (k || "director")) || TEAM[0];
+  const mod = MODS.find(m => m.id === askModule);
+  const pool = TEAM.filter(p => p.key === "director" || !mod || p.module === mod.id || (mod.shared || []).includes(p.key));
+  if (askAgent && !pool.some(p => p.key === askAgent)) askAgent = null;
   page(`
     <div class="card">
       <div class="card-head"><h3>🤖 Hỏi phòng R&amp;D</h3><div class="row"><a class="btn" href="/api/chat.docx?i=all" download>📄 Xuất tất cả ra Word</a><button class="btn" id="clear">🧹 Xóa lịch sử</button></div></div>
-      <div class="agent-picker">${TEAM.map(p => `<button data-k="${p.key}" class="${(askAgent || "director") === p.key ? "on" : ""}">${avatar(p, 26)} ${esc(p.name)}</button>`).join("")}</div>
+      <div class="agent-picker" id="mod-pick"><button data-m="" class="${!mod ? "on" : ""}">🏢 Cả phòng</button>${MODS.map(m => `<button data-m="${esc(m.id)}" class="${mod && mod.id === m.id ? "on" : ""}">${esc(m.icon)} ${esc(m.name)}</button>`).join("")}</div>
+      <div class="agent-picker">${pool.map(p => `<button data-k="${p.key}" class="${(askAgent || "director") === p.key ? "on" : ""}" title="${esc(p.role)}">${avatar(p, 26)} ${p.module_icon && !mod ? esc(p.module_icon) + " " : ""}${esc(p.name)}</button>`).join("")}</div>
       <p class="small muted" id="who-hint"></p>
       <textarea id="q" placeholder="Ví dụ: So sánh kiến trúc DT của Hitachi Lumada APM và Siemens Sensformer; cái nào phù hợp lưới 110 kV Việt Nam?"></textarea>
       <div class="row" style="margin-top:10px;justify-content:space-between">
@@ -129,19 +235,20 @@ async function ask() {
     <div class="chat" id="chat" style="margin-top:16px"></div>`);
   const hint = () => {
     const p = who(askAgent);
-    $("#who-hint").textContent = askAgent ? `Hỏi trực tiếp ${p.name} – ${p.role} (tra kho tài liệu + Qwen).` : "Trưởng phòng Minh sẽ trả lời tổng hợp, dựa trên kho tài liệu.";
+    $("#who-hint").textContent = (askAgent ? `Hỏi trực tiếp ${p.name} – ${p.role} (tra kho tài liệu + Qwen).` : `Trưởng phòng Minh chọn chuyên viên phù hợp${mod ? " trong module " + mod.name : " trong cả phòng"} và trả lời dựa trên kho tài liệu.`);
   };
   hint();
   const bubble = (it, idx) => `
     <div class="msg me">${esc(it.q)}</div>
-    <div class="msg bot"><div class="meta">${avatar(who(it.agent), 22)} <b>${esc(who(it.agent).name)}</b> · ${esc(it.time)} <span class="pill">${esc(it.engine || "local")}</span>
+    <div class="msg bot"><div class="meta">${avatar(who(it.agent), 22)} <b>${esc(who(it.agent).name)}</b> · ${esc(it.time)} <span class="pill">${esc(it.engine || "local")}</span>${it.module ? ` <span class="pill">${esc((MODS.find(m => m.id === it.module) || {}).icon || "")} ${esc(it.module)}</span>` : ""}
       <a class="small" style="margin-left:auto" href="/api/chat.docx?i=${idx}" download>📄 Xuất Word</a></div>
       <div class="md">${it.a_html}</div></div>`;
   const chat = $("#chat");
   chat.innerHTML = hist.map((it, i) => bubble(it, i)).reverse().join("");
-  view().querySelectorAll(".agent-picker button").forEach(b => b.onclick = () => {
+  view().querySelectorAll("#mod-pick button").forEach(b => b.onclick = () => { askModule = b.dataset.m; ask(); });
+  view().querySelectorAll(".agent-picker button[data-k]").forEach(b => b.onclick = () => {
     askAgent = b.dataset.k === "director" ? null : b.dataset.k;
-    view().querySelectorAll(".agent-picker button").forEach(x => x.classList.toggle("on", x === b));
+    view().querySelectorAll(".agent-picker button[data-k]").forEach(x => x.classList.toggle("on", x === b));
     hint();
   });
   $("#clear").onclick = async () => { if (confirm("Xóa toàn bộ lịch sử hỏi đáp?")) { await post("/api/chat/clear"); ask(); } };
@@ -154,7 +261,7 @@ async function ask() {
     pending.innerHTML = `<div class="msg me">${esc(q)}</div><div class="msg bot"><span class="spin"></span> ${esc(who(askAgent).name)} đang tra tài liệu và soạn câu trả lời…</div>`;
     chat.prepend(pending);
     try {
-      const { job } = await post("/api/ask", { question: q, agent: askAgent });
+      const { job } = await post("/api/ask", { question: q, agent: askAgent, module: askModule || null });
       refreshChips();
       const it = await waitJob(job);
       pending.outerHTML = bubble(it, hist.length);
@@ -262,18 +369,32 @@ async function reports(arg) {
 }
 
 // ------------------------------------------------------------ 👥 Nhân sự
-function team() {
+function personCard(p) {
   const li = a => (a || []).map(x => `<li>${esc(x)}</li>`).join("");
-  page(`<div class="grid g2">${TEAM.map(p => `
-    <div class="card"><div class="person">${avatar(p, 64)}
+  return `<div class="card"><div class="person">${avatar(p, 64)}
       <div style="flex:1"><h3>${esc(p.name)}</h3><div class="role">${esc(p.role)}</div>
         <p class="small" style="margin:6px 0">${esc(p.scope)}</p>
-        <div class="small"><span class="pill">Đang làm</span> ${esc(p.task)}</div>
+        ${p.task ? `<div class="small"><span class="pill">Đang làm</span> ${esc(p.task)}</div>` : ""}
         ${p.references?.length ? `<div class="small muted" style="margin-top:8px"><b>Tài liệu gốc:</b><ul>${li(p.references)}</ul></div>` : ""}
         ${p.questions?.length ? `<div class="small muted"><b>Câu hỏi thường trực:</b><ul>${li(p.questions)}</ul></div>` : ""}
         <button class="btn" style="margin-top:10px" data-k="${p.key}">🤖 Hỏi ${esc(p.name)}</button>
-      </div></div></div>`).join("")}</div>`);
-  view().querySelectorAll("button[data-k]").forEach(b => b.onclick = () => { askAgent = b.dataset.k === "director" ? null : b.dataset.k; location.hash = "ask"; });
+      </div></div></div>`;
+}
+
+async function team() {
+  MODS = await get("/api/modules");
+  const groups = [["director", "🏢 Ban điều phối"], ["shared", "🤝 Khối chuyên viên dùng chung (mọi module mượn được)"],
+    ...MODS.map(m => [m.id, `${m.icon} Module ${m.name} · ${m.status_vi}`])];
+  page(groups.map(([k, title]) => {
+    const ps = TEAM.filter(p => p.module === k);
+    return ps.length ? `<h2 class="section-h">${esc(title)} <span class="pill">${ps.length}</span></h2><div class="grid g2">${ps.map(personCard).join("")}</div>` : "";
+  }).join(""));
+  view().querySelectorAll("button[data-k]").forEach(b => b.onclick = () => {
+    const p = TEAM.find(x => x.key === b.dataset.k);
+    askAgent = b.dataset.k === "director" ? null : b.dataset.k;
+    askModule = p && !["shared", "director"].includes(p.module) ? p.module : "";
+    location.hash = "ask";
+  });
 }
 
 // ------------------------------------------------------------ 🧮 Công cụ
@@ -385,13 +506,16 @@ function tools() {
 // ------------------------------------------------------------ 📚 Kho tài liệu
 const FOLDER_NAMES = { "01_standards": "Tiêu chuẩn IEC/ISO", "02_cigre_ieee": "CIGRE & IEEE", "03_vendor": "Tài liệu hãng", "04_vietnam": "Pháp lý & EVN", "05_papers": "Bài báo khoa học", "06_vti_data": "Dữ liệu VTI/khách hàng (chỉ local)" };
 
-async function library() {
+const folderLabel = d => d.module_name && d.folder.startsWith("m_") ? `${d.module_icon} ${d.module_name}` : (FOLDER_NAMES[d.folder] || d.folder);
+
+async function library(arg) {
   const [lib, st] = await Promise.all([get("/api/library"), get("/api/status")]);
+  const pre = arg ? decodeURIComponent(arg) : "";
   page(`
     <div class="card">
       <div class="card-head"><h3>📚 Kho tài liệu (RAG)</h3><span class="pill">${st.kb.documents} tài liệu · ${st.kb.chunks} đoạn đã nạp</span></div>
       <div class="row">
-        <label class="f">Thư mục<select id="folder">${lib.map(d => `<option value="${esc(d.folder)}">${esc(d.folder)} – ${esc(FOLDER_NAMES[d.folder] || "")}</option>`).join("")}</select></label>
+        <label class="f">Thư mục<select id="folder">${lib.map(d => `<option value="${esc(d.folder)}" ${d.folder === pre ? "selected" : ""}>${esc(d.folder)} – ${esc(folderLabel(d))}</option>`).join("")}</select></label>
       </div>
       <div class="drop" id="lib-drop" style="margin-top:10px">Kéo thả PDF / MD / TXT vào đây (nhiều file) hoặc bấm để chọn<input type="file" id="lib-file" multiple accept=".pdf,.md,.txt" hidden></div>
       <div class="row" style="margin-top:12px"><button class="btn btn-primary" id="ingest">⚙️ Nạp vào kho (tạo embedding)</button>
@@ -399,7 +523,7 @@ async function library() {
       <pre class="log" id="ing-log" hidden></pre>
     </div>
     <div class="grid g3" style="margin-top:16px">${lib.map(d => `
-      <div class="card"><div class="card-head"><h3>${d.folder === "06_vti_data" ? "🔒" : "📁"} ${esc(FOLDER_NAMES[d.folder] || d.folder)}</h3><span class="pill">${d.files.length}</span></div>
+      <div class="card"><div class="card-head"><h3>${d.folder === "06_vti_data" ? "🔒" : d.folder.startsWith("m_") ? "" : "📁"} ${esc(folderLabel(d))}</h3><span class="pill">${d.files.length}</span></div>
         <div class="small muted">${esc(d.folder)}</div>
         <ul class="small">${d.files.map(f => `<li>${esc(f.name)} <span class="muted">(${f.kb} KB)</span></li>`).join("") || "<li class='muted'>trống</li>"}</ul></div>`).join("")}</div>`);
 
@@ -444,19 +568,22 @@ async function settings() {
         <ul class="small">${st.cloud.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
         <p class="small muted">Bật trong <code>config/settings.yaml → cloud.enabled: true</code> và đặt khóa API trong <code>.env</code>. Dữ liệu thư mục 06_vti_data luôn chạy local.</p></div>
     </div>
-    <div class="card" style="margin-top:16px"><div class="card-head"><h3>🗂 Dự án</h3></div>
-      <div class="kv"><span>Tên</span><b>${esc(st.project.name || "")}</b><span>Giai đoạn hiện tại</span><b>${esc(st.phase.code)} – ${esc(st.phase.name)}</b><span>Mốc hoàn thành hồ sơ</span><b>${esc(st.project.deadline || "")}</b></div></div>
+    <div class="card" style="margin-top:16px"><div class="card-head"><h3>🧩 Tổ chức phòng</h3><a class="btn" href="#modules">Quản lý module</a></div>
+      <div class="kv"><span>Module</span><b>${st.modules.total} (đang nghiên cứu ${st.modules.active})</b><span>Chu kỳ báo cáo</span><b>3 ngày/lần, tự chạy sau 07:00 khi Ollama đang chạy</b>
+        <span>Cấu hình</span><span><code>config/modules.yaml</code> (module), <code>config/team.yaml</code> (Trưởng phòng + khối dùng chung), <code>config/settings.yaml → cycle</code></span></div></div>
     <div class="card" style="margin-top:16px"><div class="card-head"><h3>⌨️ Lệnh Terminal hữu ích</h3></div>
       <div class="md"><table>
-        <tr><td><code>bash scripts/install_app.sh</code></td><td>Cài server luôn chạy nền + lịch báo cáo sáng thứ Hai</td></tr>
+        <tr><td><code>bash scripts/install_app.sh</code></td><td>Cài server luôn chạy nền (tự chạy chu kỳ báo cáo 3 ngày)</td></tr>
+        <tr><td><code>python3 dtlab.py modules</code></td><td>Liệt kê module và trạng thái</td></tr>
+        <tr><td><code>python3 dtlab.py module-status bess active</code></td><td>Kích hoạt / tạm dừng module</td></tr>
         <tr><td><code>python3 dtlab.py doctor</code></td><td>Kiểm tra Ollama, model, RAM</td></tr>
         <tr><td><code>python3 dtlab.py free-models</code></td><td>Xem quota model cloud miễn phí</td></tr>
-        <tr><td><code>python3 dtlab.py week</code></td><td>Chạy vòng nghiên cứu tuần từ Terminal</td></tr>
+        <tr><td><code>python3 dtlab.py cycle --modules dt,market</code></td><td>Chạy ngay một chu kỳ nghiên cứu từ Terminal</td></tr>
       </table></div></div>`);
 }
 
 // ------------------------------------------------------------ router
-const VIEWS = { today, tree, ask, news: newsView, reports, team, tools, library, settings };
+const VIEWS = { today, modules: modulesView, tree, ask, news: newsView, reports, team, tools, library, settings };
 
 async function route() {
   const [name, arg] = (location.hash.slice(1) || "today").split(":");

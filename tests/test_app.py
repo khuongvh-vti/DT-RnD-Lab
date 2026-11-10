@@ -34,7 +34,12 @@ def test_pages_and_static():
 
 def test_team_reports_phase():
     team = json.loads(call("/api/team")[1])
-    assert len(team) == 8 and team[0]["key"] == "director"
+    assert team[0]["key"] == "director" and len({p["key"] for p in team}) == len(team) >= 15
+    assert all("look" in p and p.get("module") for p in team)
+    mods = json.loads(call("/api/modules")[1])
+    assert {m["id"] for m in mods} >= {"dt", "monitoring", "asset_health", "bess", "market"}
+    assert call("/api/modules", {"name": ""})[0] == 400
+    assert call("/api/modules/status", {"id": "dt", "status": "xx"})[0] == 400
     assert isinstance(json.loads(call("/api/reports")[1]), list)
     p = server.phase_now("2027-02-01")
     assert p["code"] == "GĐ3" and 0 < p["pct"] < 1
@@ -65,7 +70,7 @@ def test_report_docx_export():
     assert code == 200 and data[:2] == b"PK"
     z = zipfile.ZipFile(io.BytesIO(data))
     assert "word/document.xml" in z.namelist()
-    assert "Digital Twin" in z.read("word/document.xml").decode()
+    assert "VTICorp" in z.read("word/document.xml").decode()
 
 
 def test_docx_markdown_features():

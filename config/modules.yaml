@@ -1,0 +1,178 @@
+# Các MODULE nghiên cứu của Phòng R&D VTI.
+# Mỗi module = 1 chủ đề nghiên cứu có mục tiêu, lộ trình, nhóm chuyên viên riêng và thư mục tài liệu riêng.
+# Chuyên viên KHỐI DÙNG CHUNG (tiêu chuẩn, dữ liệu & AI, OT/an ninh mạng, benchmark, thị trường VN) nằm trong config/team.yaml
+# và được mọi module mượn khi cần.
+#
+# status: active  = đang nghiên cứu (chạy trong chu kỳ báo cáo 3 ngày)
+#         standby = đã dựng khung, chờ anh Khương đưa nội dung / bấm "Kích hoạt"
+#         paused  = tạm dừng
+# Thêm module mới: dùng form "➕ Mở module mới" trong tab 🧩 Module (hoặc chép một khối bên dưới).
+
+modules:
+  dt:
+    name: "Digital Twin ngành điện"
+    icon: "🧬"
+    status: active
+    created: "2026-11-10"
+    goal: "Hiểu sâu hệ thống Digital Twin ngành điện (Transformer DT & Substation DT 110 kV): kiến trúc, mô hình, sản phẩm thị trường, khả năng cạnh tranh của VTI và tính khả thi tại Việt Nam."
+    scope: "Transformer DT, Substation DT 110 kV; CIGRE TB 995 (5 mức), VVUQ, IEC 61850-90-3, IEC 60076-7, IEC 60599."
+    library: ["01_standards", "02_cigre_ieee", "03_vendor", "04_vietnam", "05_papers", "06_vti_data"]
+    keywords: ["digital twin", "transformer", "substation", "hot-spot", "DGA", "IEC 61850", "CIGRE TB 995"]
+    shared: [standards, data_ai, ot_cyber, benchmark, vn_market]
+    phases:
+      - {code: "GĐ1", name: "Nền tảng tri thức", start: "2026-11-11", end: "2026-12-20"}
+      - {code: "GĐ2", name: "Mổ xẻ thị trường", start: "2026-12-07", end: "2027-01-24"}
+      - {code: "GĐ3", name: "Làm chủ mô hình", start: "2027-01-25", end: "2027-04-18"}
+      - {code: "GĐ4", name: "Định hình sản phẩm & hồ sơ", start: "2027-04-19", end: "2027-05-30"}
+      - {code: "GĐ5", name: "Pilot", start: "2027-06-01", end: "2027-12-31"}
+    questions:
+      - "Kiến trúc Transformer DT nào phù hợp trạm 110 kV không người trực của EVN?"
+      - "VTI có thể đạt mức DT nào (Descriptive → Autonomous theo TB 995) trong 12 tháng?"
+    members:
+      physics:
+        name: "Chuyên viên Mô hình vật lý thiết bị"
+        scope: "Thermal model, lão hóa cách điện, DGA, PD, OLTC, bushing, cáp"
+        references: ["IEC 60076-7", "IEEE C57.91", "IEC 60599", "IEEE C57.104", "IEC 60270", "IEC 60287"]
+        standing_questions:
+          - "Hiệu chỉnh thông số mô hình nhiệt IEC 60076-7 từ số đo điểm nóng thực tế như thế nào?"
+          - "Ngưỡng và xu hướng DGA nào dùng để cảnh báo sớm cho MBA 110 kV tại Việt Nam?"
+      substation:
+        name: "Chuyên viên Substation DT (trạm 110 kV)"
+        scope: "DT cấp trạm: topology từ SCL, liên kết tài sản, tổng hợp cảnh báo, máy cắt/GIS, cáp, camera nhiệt, môi trường"
+        references: ["IEC 61850-6 (SCL/SCD)", "IEC 61850-7-4", "IEC 62271", "IEC 61968/61970 CIM", "CIGRE TB 995"]
+        standing_questions:
+          - "Dựng DT cấp trạm từ file SCD và danh mục thiết bị như thế nào để có topology + trạng thái real-time?"
+          - "Chức năng Substation DT nào có giá trị nhất cho trạm 110 kV không người trực?"
+
+  monitoring:
+    name: "Online Monitoring & Chẩn đoán"
+    icon: "📡"
+    status: standby
+    created: "2026-11-10"
+    goal: "Làm chủ công nghệ giám sát tình trạng online (PD, DGA, nhiệt độ, bushing, DTS cáp) – nguyên lý cảm biến, thuật toán chẩn đoán, tiêu chuẩn nghiệm thu – để nâng cấp bộ giải pháp chào hàng của VTI."
+    scope: "MBA, GIS, cáp ngầm, tủ trung thế, máy phát; cảm biến UHF/HFCT/TEV/AE, DGA online, fiber optic, wireless, IR, DTS; ngưỡng cảnh báo & nghiệm thu."
+    library: ["m_monitoring"]
+    keywords: ["partial discharge", "UHF", "HFCT", "DGA online", "fiber optic", "DTS", "bushing monitoring", "wireless temperature"]
+    shared: [standards, data_ai, ot_cyber, benchmark, vn_market]
+    phases:
+      - {code: "GĐ1", name: "Hệ thống hóa công nghệ & tiêu chuẩn", start: "2026-11-15", end: "2027-01-15"}
+      - {code: "GĐ2", name: "So sánh sản phẩm & đối thủ", start: "2027-01-16", end: "2027-03-15"}
+      - {code: "GĐ3", name: "Thuật toán chẩn đoán & dữ liệu mẫu", start: "2027-03-16", end: "2027-06-15"}
+      - {code: "GĐ4", name: "Bộ giải pháp chào hàng", start: "2027-06-16", end: "2027-08-31"}
+    questions:
+      - "Phương pháp đo PD online nào phù hợp từng loại thiết bị (MBA, GIS, cáp, tủ trung thế) và giới hạn của từng phương pháp?"
+      - "Tiêu chí nghiệm thu (SAT) hệ thống giám sát online mà EVN đang/nên áp dụng?"
+    members:
+      pd_expert:
+        name: "Chuyên viên Phóng điện cục bộ (PD) & cách điện"
+        scope: "Đo PD online/offline: UHF, HFCT, TEV, siêu âm (AE); nhận dạng dạng phóng điện (PRPD), khử nhiễu, định vị"
+        references: ["IEC 60270", "IEC TS 62478", "IEEE C57.127", "IEC 60034-27-2", "CIGRE TB 444", "CIGRE TB 654"]
+        standing_questions:
+          - "So sánh độ nhạy và khả năng chống nhiễu của UHF, HFCT, TEV, AE cho từng loại thiết bị?"
+          - "Ngưỡng cảnh báo PD online nên đặt theo xu hướng hay theo giá trị tuyệt đối?"
+      dga_oil:
+        name: "Chuyên viên DGA & dầu cách điện"
+        scope: "DGA online (đa khí/H2), lấy mẫu, độ chính xác, phương pháp chẩn đoán, chất lượng dầu"
+        references: ["IEC 60599", "IEEE C57.104-2019", "IEC 60567", "IEC 60422", "CIGRE TB 783", "CIGRE TB 771"]
+        standing_questions:
+          - "Thiết bị DGA online loại nào đáp ứng yêu cầu độ chính xác theo CIGRE TB 783?"
+          - "Quy trình kiểm chứng DGA online với phòng thí nghiệm tại hiện trường?"
+      sensors_thermal:
+        name: "Chuyên viên Cảm biến nhiệt, bushing & DTS"
+        scope: "Fiber optic winding sensor, wireless temperature, camera nhiệt, DTS cáp, giám sát bushing (C1, tanδ), OLTC"
+        references: ["IEC 60076-7", "IEEE C57.91", "IEC 60287", "IEC 61757", "IEC 60137", "IEEE C57.19.01"]
+        standing_questions:
+          - "Cấu hình giám sát nhiệt tối thiểu cho MBA 110 kV và tủ trung thế trong trạm không người trực?"
+          - "DTS cho cáp ngầm 110/220 kV: yêu cầu kỹ thuật và tính toán khả năng tải động (RTTR)?"
+
+  asset_health:
+    name: "Asset Management & Health Index"
+    icon: "🩺"
+    status: standby
+    created: "2026-11-10"
+    goal: "Xây dựng phương pháp đánh giá tình trạng (Health Index), xếp hạng rủi ro và chiến lược bảo dưỡng theo tình trạng (CBM) cho đội thiết bị của khách hàng, kết hợp dữ liệu online và thí nghiệm định kỳ."
+    scope: "Health Index MBA/máy cắt/cáp; ma trận rủi ro (xác suất × hậu quả); CBM/RCM; kế hoạch thay thế; ISO 55000."
+    library: ["m_asset_health"]
+    keywords: ["health index", "condition assessment", "asset management", "risk", "CBM", "RCM", "ISO 55000"]
+    shared: [standards, data_ai, benchmark, vn_market]
+    phases:
+      - {code: "GĐ1", name: "Phương pháp luận & tiêu chuẩn", start: "2026-12-01", end: "2027-01-31"}
+      - {code: "GĐ2", name: "Mô hình HI & rủi ro mẫu", start: "2027-02-01", end: "2027-04-30"}
+      - {code: "GĐ3", name: "Thử trên dữ liệu thật & hồ sơ chào hàng", start: "2027-05-01", end: "2027-07-31"}
+    questions:
+      - "Công thức Health Index nào minh bạch, giải thích được cho EVN và dùng được dữ liệu sẵn có?"
+      - "Lợi ích tài chính (tránh sự cố, kéo dài tuổi thọ) tính như thế nào để thuyết phục khách hàng?"
+    members:
+      health_index:
+        name: "Chuyên viên Health Index & đánh giá tình trạng"
+        scope: "Chỉ số sức khỏe, trọng số, chấm điểm từ DGA/thí nghiệm/online, xác suất hư hỏng"
+        references: ["CIGRE TB 761", "IEEE C57.152", "IEC 60422", "IEC 60599", "ISO 55001"]
+        standing_questions:
+          - "Bộ tham số tối thiểu để tính HI cho MBA 110 kV từ biên bản thí nghiệm định kỳ?"
+      maintenance_strategy:
+        name: "Chuyên viên Chiến lược bảo dưỡng & rủi ro"
+        scope: "CBM/RCM, ma trận rủi ro, ưu tiên đầu tư, kế hoạch thay thế, LCC"
+        references: ["ISO 55000/55001", "IEC 60300-3-11", "IEC 60812 (FMEA)", "IEC 31010"]
+        standing_questions:
+          - "Chuyển từ bảo dưỡng định kỳ sang CBM cho trạm 110 kV cần điều kiện gì?"
+
+  bess:
+    name: "BESS & Tích hợp năng lượng tái tạo"
+    icon: "🔋"
+    status: standby
+    created: "2026-11-10"
+    goal: "Nắm công nghệ, tiêu chuẩn an toàn và mô hình kinh doanh của hệ thống lưu trữ pin (BESS) và đấu nối NLTT để tìm phần việc VTI làm được: giám sát, EMS, cảnh báo cháy, tích hợp SCADA."
+    scope: "BESS trên lưới phân phối/truyền tải và nhà máy NLTT; cell/BMS/PCS/EMS; an toàn cháy; đấu nối, dịch vụ phụ trợ; thị trường VN."
+    library: ["m_bess"]
+    keywords: ["BESS", "battery energy storage", "EMS", "BMS", "thermal runaway", "IEC 62933", "NFPA 855", "grid code"]
+    shared: [standards, data_ai, ot_cyber, benchmark, vn_market]
+    phases:
+      - {code: "GĐ1", name: "Công nghệ & tiêu chuẩn an toàn", start: "2026-12-01", end: "2027-01-31"}
+      - {code: "GĐ2", name: "Thị trường VN & đối tác", start: "2027-02-01", end: "2027-03-31"}
+      - {code: "GĐ3", name: "Giải pháp giám sát/EMS của VTI", start: "2027-04-01", end: "2027-06-30"}
+    questions:
+      - "Các gói BESS của EVN yêu cầu những hệ thống giám sát/EMS nào và VTI tham gia ở vai trò nào?"
+      - "Cảnh báo sớm thermal runaway: cảm biến khí, nhiệt, giám sát cell – giải pháp nào khả thi?"
+    members:
+      bess_tech:
+        name: "Chuyên viên Công nghệ BESS & an toàn"
+        scope: "Cell LFP/NMC, BMS, PCS, EMS, phòng cháy, cảnh báo sớm thermal runaway, tuổi thọ & SOH"
+        references: ["IEC 62933 (series)", "IEC 62619", "IEC 62485", "UL 9540", "UL 9540A", "NFPA 855"]
+        standing_questions:
+          - "Kiến trúc giám sát an toàn BESS (khí, nhiệt, khói, BMS) tốt nhất hiện nay?"
+      grid_integration:
+        name: "Chuyên viên Đấu nối lưới & NLTT"
+        scope: "Đấu nối BESS/NLTT, yêu cầu kỹ thuật lưới, dịch vụ phụ trợ, IEC 61850-7-420, điều độ"
+        references: ["IEC 61850-7-420", "IEEE 1547", "IEEE 2800", "Thông tư 62/2025/TT-BCT", "Quy hoạch điện VIII điều chỉnh"]
+        standing_questions:
+          - "Yêu cầu kết nối SCADA/điều độ cho BESS 110 kV tại Việt Nam?"
+
+  market:
+    name: "Thị trường, Đấu thầu & Cơ hội VTI"
+    icon: "📊"
+    status: active
+    created: "2026-11-10"
+    goal: "Theo dõi liên tục dự án, kế hoạch đầu tư, gói thầu và đối thủ trong ngành điện để phát hiện sớm cơ hội cho VTI; nối với bản tin 📰 hằng ngày."
+    scope: "EVN/EVNNPT/các TCT Điện lực, nhà máy điện, KCN; KHLCNT/HSMT trên muasamcong; gọi vốn dự án; đối thủ & đối tác trong và ngoài nước."
+    library: ["m_market"]
+    keywords: ["đấu thầu", "KHLCNT", "gói thầu", "EVNNPT", "trạm biến áp", "giám sát trực tuyến", "đối thủ"]
+    shared: [vn_market, benchmark]
+    phases:
+      - {code: "GĐ1", name: "Bản đồ khách hàng & kênh thông tin", start: "2026-11-11", end: "2026-12-31"}
+      - {code: "GĐ2", name: "Pipeline cơ hội & đối thủ", start: "2027-01-01", end: "2027-06-30"}
+    questions:
+      - "Những dự án TBA nào sắp đấu thầu có hạng mục giám sát online hoặc SCADA?"
+      - "Đối thủ nào đang thắng các gói giám sát online và với giá bao nhiêu?"
+    members:
+      tender_analyst:
+        name: "Chuyên viên Phân tích đấu thầu"
+        scope: "KHLCNT, HSMT, kết quả LCNT, tiêu chí kỹ thuật, giá gói thầu, hạn nộp"
+        references: ["Luật Đấu thầu 22/2023/QH15", "muasamcong.mpi.gov.vn", "Báo Đấu thầu"]
+        standing_questions:
+          - "Gói thầu nào trong 30 ngày tới có hạng mục liên quan năng lực VTI?"
+      competitor_watch:
+        name: "Chuyên viên Theo dõi đối thủ & đối tác"
+        scope: "Đối thủ trong nước, hãng quốc tế, nhà thầu EPC, đối tác tiềm năng; giá trúng thầu"
+        references: ["Hitachi Energy", "Siemens Energy", "GE Vernova", "Qualitrol", "Doble", "Camlin", "Omicron", "Megger"]
+        standing_questions:
+          - "Ai đang trúng các gói giám sát online/BESS gần đây và cấu hình giải pháp của họ?"

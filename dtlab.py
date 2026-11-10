@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""CLI Phòng R&D Digital Twin – chạy local bằng Qwen qua Ollama.
+"""CLI Phòng R&D Năng lượng & Công nghệ VTI (module đầu tiên: Digital Twin) – chạy local bằng Qwen qua Ollama.
 
   python3 dtlab.py doctor                 # kiểm tra máy, Ollama, model
   python3 dtlab.py setup                  # tải model Qwen phù hợp RAM + embedding
   python3 dtlab.py ingest                 # nạp tài liệu trong library/ vào kho tri thức
-  python3 dtlab.py week [--focus "..."]   # chạy 1 vòng tuần: giao việc → nghiên cứu → tổng hợp
+  python3 dtlab.py cycle [--focus ".."] [--modules dt,bess]  # 1 chu kỳ 3 ngày cho các module đang hoạt động
+  python3 dtlab.py modules                # liệt kê module nghiên cứu và trạng thái
+  python3 dtlab.py module-status bess active   # bật/tạm dừng module (active/standby/paused)
   python3 dtlab.py ask "câu hỏi"          # hỏi nhanh, Trưởng phòng định tuyến tới chuyên viên
   python3 dtlab.py thermal --load 1.2 --ambient 35   # thử mô hình nhiệt IEC 60076-7
   python3 dtlab.py scl path/to/station.scd   # dựng khung Substation DT từ file SCD (IEC 61850-6)
@@ -58,12 +60,15 @@ def git_sync(s, msg: str):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Phòng R&D Digital Twin (local, Qwen/Ollama)")
+    ap = argparse.ArgumentParser(description="Phòng R&D Năng lượng & Công nghệ VTI (local, Qwen/Ollama)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("doctor")
     sub.add_parser("setup")
     sub.add_parser("ingest")
     w = sub.add_parser("week"); w.add_argument("--focus", default=""); w.add_argument("--backlog", default="")
+    cy = sub.add_parser("cycle"); cy.add_argument("--focus", default=""); cy.add_argument("--modules", default="")
+    sub.add_parser("modules")
+    ms = sub.add_parser("module-status"); ms.add_argument("id"); ms.add_argument("status", choices=["active", "standby", "paused"])
     a = sub.add_parser("ask"); a.add_argument("question")
     t = sub.add_parser("thermal")
     t.add_argument("--load", type=float, default=1.0); t.add_argument("--ambient", type=float, default=30)
@@ -102,14 +107,25 @@ def main():
         llm = make_llm(s)
         kb = KnowledgeBase(s["paths"]["index_db"], llm, s["rag"]["chunk_chars"], s["rag"]["overlap_chars"])
         n = kb.ingest(s["paths"]["library"]); print(f"Đã nạp {n} đoạn. {kb.stats()}")
-    elif args.cmd in ("week", "ask"):
+    elif args.cmd == "modules":
+        from lab import modules as M
+        for mid, m in M.load().items():
+            ph = M.phase_now(m)
+            print(f"{m.get('icon', '')} {mid:<14} {M.STATUS_VI.get(m.get('status')):<16} {ph['code']} {ph['name']:<36} "
+                  f"{len(m.get('members') or {})} chuyên viên riêng – {m.get('name')}")
+    elif args.cmd == "module-status":
+        from lab import modules as M
+        M.set_status(args.id, args.status); print(f"{args.id} → {M.STATUS_VI[args.status]}")
+    elif args.cmd in ("week", "cycle", "ask"):
         from lab.team import Director
         llm = make_llm(s)
         kb = KnowledgeBase(s["paths"]["index_db"], llm, s["rag"]["chunk_chars"], s["rag"]["overlap_chars"])
         boss = Director(team, s, llm, kb)
-        if args.cmd == "week":
-            p = boss.run_week(args.focus, args.backlog)
-            git_sync(s, f"Báo cáo tuần {p.parent.name}")
+        if args.cmd in ("week", "cycle"):
+            mods = [m for m in getattr(args, "modules", "").split(",") if m]
+            kb.ingest(s["paths"]["library"])
+            p = boss.run_cycle(args.focus, modules=mods or None)
+            git_sync(s, f"Báo cáo 3 ngày {p.parent.name}")
         else:
             print(boss.ask(args.question))
     elif args.cmd == "thermal":

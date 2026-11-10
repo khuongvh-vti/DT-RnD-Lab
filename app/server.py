@@ -1,4 +1,4 @@
-"""DT-RnD-Lab – ứng dụng web local (mở bằng Chrome). Chạy: python3 app/server.py → http://localhost:8766
+"""VTI R&D Lab (repo DT-RnD-Lab) – ứng dụng web local (mở bằng Chrome). Chạy: python3 app/server.py → http://localhost:8766
 Chỉ dùng thư viện chuẩn Python + các module trong lab/. Việc nặng (hỏi Qwen, vòng tuần, nạp tài liệu) chạy nền theo job."""
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 import yaml  # noqa: E402
 
 from lab import docx_export, news, site  # noqa: E402
+from lab import modules as M  # noqa: E402
 from lab import site_content as C  # noqa: E402
 from lab.physics import dga, scl, transformer_thermal as th  # noqa: E402
 
@@ -106,7 +107,10 @@ def start_job(kind: str, fn, *args):
     return jid
 
 
-def phase_now(today=None):
+def phase_now(today=None, mid: str = "dt"):
+    mod = M.load().get(mid)
+    if mod and mod.get("phases"):
+        return M.phase_now(mod, today)
     today = today or dt.date.today().isoformat()
     cur = next((p for p in PHASES if p[2] <= today <= p[3]), None)
     if cur is None:
@@ -139,8 +143,43 @@ def docx_name(*parts: str) -> str:
     return "_".join(re.sub(r"[\\/:*?\"<>|\s]+", "_", x).strip("_") for x in parts if x) + ".docx"
 
 
+def team_list() -> list[dict]:
+    """Trưởng phòng + khối dùng chung + chuyên viên riêng của mọi module (kèm ngoại hình để vẽ)."""
+    _, t = load_cfg()
+    mods = M.load()
+    base = {p["key"]: p for p in C.TEAM}
+    d = t["director"]
+    out = [{**base["director"], "role": "Trưởng phòng – Điều phối mọi module", "title": d["name"], "scope": d["mission"].strip(),
+            "references": [], "questions": [], "module": "director", "module_name": "Ban điều phối"}]
+    ros = M.roster(t, mods)
+    looks = M.personas(list(ros), base)
+    for k, v in ros.items():
+        p = looks[k]
+        mod = mods.get(v["module"], {})
+        out.append({**p, "role": v["name"].replace("Chuyên viên ", ""), "title": v["name"], "scope": v.get("scope", ""),
+                    "task": p.get("task") or (v.get("standing_questions") or [""])[0],
+                    "references": v.get("references", []), "questions": v.get("standing_questions", []),
+                    "module": v["module"], "module_name": v["module_name"], "module_icon": mod.get("icon", "🤝"),
+                    "module_status": mod.get("status", "active") if v["module"] != "shared" else "active"})
+    return out
+
+
+def modules_list() -> list[dict]:
+    _, t = load_cfg()
+    out = []
+    for mid, m in M.load().items():
+        docs = sum(1 for f in (x for d in (m.get("library") or []) if (LIB / d).is_dir() for x in (LIB / d).rglob("*"))
+                   if f.is_file() and f.suffix.lower() in {".pdf", ".md", ".txt"} and f.name != "README.md")
+        own = list((m.get("members") or {}).keys())
+        out.append({"id": mid, **{k: m.get(k) for k in ("name", "icon", "status", "goal", "scope", "created", "library",
+                                                          "questions", "keywords", "shared")},
+                    "status_vi": M.STATUS_VI.get(m.get("status", "active")), "phase": M.phase_now(m),
+                    "members": own, "member_names": [m["members"][k]["name"] for k in own], "docs": docs})
+    return out
+
+
 def chat_md(it: dict) -> str:
-    who = {p["key"]: f"{p['name']} – {p['role']}" for p in C.TEAM}.get(it.get("agent") or "director", it.get("agent"))
+    who = {p["key"]: f"{p['name']} – {p['role']}" for p in team_list()}.get(it.get("agent") or "director", it.get("agent"))
     return (f"## Câu hỏi ({it.get('time', '')})\n\n> {it['q']}\n\n"
             f"### Trả lời của {who} · engine: {it.get('engine', 'local')}\n\n{it['a']}\n\n---")
 
@@ -159,25 +198,91 @@ def chat_append(item):
 
 
 # ------------------------------------------------------------------ jobs
-def job_ask(log, question, agent):
+def job_ask(log, question, agent, module=None):
     s, t = load_cfg()
     boss, _ = director(s, t)
-    log(f"Câu hỏi gửi tới: {agent or 'Trưởng phòng định tuyến'}")
-    answer = boss.ask(question, members=[agent] if agent else None)
+    log(f"Câu hỏi gửi tới: {agent or 'Trưởng phòng định tuyến'}{' · module ' + module if module else ''}")
+    answer = boss.ask(question, members=[agent] if agent else None, module=module)
     engine = getattr(boss.llm, "last_engine", "local")
     item = {"time": dt.datetime.now().strftime("%d/%m %H:%M"), "agent": agent or "director", "q": question,
-            "a": answer, "a_html": site.md_to_html(answer), "engine": engine}
+            "a": answer, "a_html": site.md_to_html(answer), "engine": engine, "module": module or ""}
     chat_append(item)
     return item
 
 
-def job_week(log, focus):
+def last_cycle_time() -> float:
+    files = list((REPORTS / "cycles").glob("*/BAO_CAO_3_NGAY.md")) if (REPORTS / "cycles").exists() else []
+    return max((f.stat().st_mtime for f in files), default=0.0)
+
+
+def new_docs_since(ts: float) -> list[str]:
+    return sorted(str(f.relative_to(LIB)) for f in LIB.rglob("*")
+                  if f.is_file() and f.suffix.lower() in {".pdf", ".md", ".txt"} and f.name != "README.md" and f.stat().st_mtime > ts)
+
+
+def news_highlights(n: int = 8) -> str:
+    lines = []
+    for day in news_days()[:3]:
+        d = news_load(day) or {}
+        for x in [i for i in d.get("items", []) if i.get("is_opportunity")][:n]:
+            lines.append(f"- [{day}] {x['title']} ({x.get('publisher', '')}) {x.get('link', '')}")
+    return "\n".join(lines[:n])
+
+
+def job_cycle(log, focus, mods=None):
     s, t = load_cfg()
     boss, kb = director(s, t)
-    log("Nạp tài liệu mới vào kho…")
+    docs = new_docs_since(last_cycle_time())
+    log(f"Nạp tài liệu mới vào kho… ({len(docs)} file mới kể từ chu kỳ trước)")
     kb.ingest(s["paths"]["library"], log=log)
-    path = boss.run_week(focus, "", log=log)
+    path = boss.run_cycle(focus, modules=mods or None, log=log, new_docs=docs, highlights=news_highlights())
     return {"path": str(Path(path).relative_to(ROOT))}
+
+
+def cycle_cfg() -> dict:
+    s, _ = load_cfg()
+    return {"auto": True, "every_days": 3, "time": "07:00", **(s.get("cycle") or {})}
+
+
+def cycle_due(now: dt.datetime | None = None) -> bool:
+    """Đến hạn chu kỳ báo cáo khi đã qua giờ hẹn và chu kỳ trước cách ≥ every_days ngày (tính theo ngày)."""
+    c = cycle_cfg()
+    now = now or dt.datetime.now()
+    if not c["auto"] or now.strftime("%H:%M") < str(c["time"]):
+        return False
+    last = last_cycle_time()
+    if not last:
+        return True
+    return (now.date() - dt.datetime.fromtimestamp(last).date()).days >= int(c["every_days"])
+
+
+def cycle_scheduler():
+    import time
+    while True:
+        try:
+            busy = any(j["kind"] == "cycle" and j["state"] == "running" for j in JOBS.values())
+            if not busy and cycle_due() and get_llm(load_cfg()[0]).list_models():
+                start_job("cycle", job_cycle, "", [])
+        except Exception:
+            pass
+        time.sleep(300)
+
+
+def job_week(log, focus):  # tương thích nút cũ
+    return job_cycle(log, focus)
+
+
+def job_new_module(log, form):
+    s, t = load_cfg()
+    llm = None
+    try:
+        llm = get_llm(s)
+        if not llm.list_models() and not getattr(llm, "cloud", None):
+            llm = None
+    except Exception:
+        llm = None
+    mid = M.create(form, t, llm=llm, log=log)
+    return {"id": mid, "intro": f"reports/modules/{mid}/00_GIOI_THIEU_MODULE.md"}
 
 
 NEWS_DIR = DATA / "news"
@@ -335,13 +440,9 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/status":
                 return self.send_json(self.status())
             if u.path == "/api/team":
-                _, t = load_cfg()
-                out = []
-                for p in C.TEAM:
-                    spec = t["director"] if p["key"] == "director" else t["members"].get(p["key"], {})
-                    out.append({**p, "title": spec.get("name", ""), "scope": spec.get("scope", spec.get("mission", "")),
-                                "references": spec.get("references", []), "questions": spec.get("standing_questions", [])})
-                return self.send_json(out)
+                return self.send_json(team_list())
+            if u.path == "/api/modules":
+                return self.send_json(modules_list())
             if u.path == "/api/reports":
                 return self.send_json(list_reports())
             if u.path == "/api/report":
@@ -353,13 +454,13 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/report.docx":
                 p = safe_path(q.get("path", ""), REPORTS)
                 md = p.read_text(encoding="utf-8")
-                sub = f"{p.parent.name} · Xuất ngày {dt.date.today().strftime('%d/%m/%Y')} · Phòng R&D Digital Twin – VTICorp"
+                sub = f"{p.parent.name} · Xuất ngày {dt.date.today().strftime('%d/%m/%Y')} · Phòng R&D Năng lượng & Công nghệ – VTICorp"
                 return self.send_docx(docx_export.markdown_to_docx(md, subtitle=sub), docx_name(p.parent.name, p.stem))
             if u.path == "/api/chat.docx":
                 h = chat_history()
                 items = h if q.get("i") in (None, "", "all") else [h[int(q["i"])]]
                 md = "\n\n".join(chat_md(it) for it in items)
-                title = "Hỏi đáp phòng R&D Digital Twin" if len(items) > 1 else f"Hỏi đáp: {items[0]['q'][:80]}"
+                title = "Hỏi đáp Phòng R&D VTI" if len(items) > 1 else f"Hỏi đáp: {items[0]['q'][:80]}"
                 return self.send_docx(docx_export.markdown_to_docx(md, title=title), docx_name("HoiDap", dt.datetime.now().strftime("%Y%m%d_%H%M")))
             if u.path == "/api/news":
                 d = news_load(q.get("date"))
@@ -395,10 +496,25 @@ class Handler(BaseHTTPRequestHandler):
                 question = (b.get("question") or "").strip()
                 if not question:
                     return self.send_json({"error": "Câu hỏi trống"}, 400)
-                return self.send_json({"job": start_job("ask", job_ask, question, b.get("agent") or None)})
-            if u.path == "/api/week":
+                return self.send_json({"job": start_job("ask", job_ask, question, b.get("agent") or None, b.get("module") or None)})
+            if u.path in ("/api/week", "/api/cycle"):
                 b = self.jbody()
-                return self.send_json({"job": start_job("week", job_week, b.get("focus", ""))})
+                mods = [m for m in (b.get("modules") or []) if m in M.load()]
+                return self.send_json({"job": start_job("cycle", job_cycle, b.get("focus", ""), mods)})
+            if u.path == "/api/modules":
+                b = self.jbody()
+                if not (b.get("name") or "").strip() or not (b.get("goal") or "").strip():
+                    return self.send_json({"error": "Cần nhập tên và mục tiêu module"}, 400)
+                for k in ("start", "deadline"):
+                    if b.get(k):
+                        dt.date.fromisoformat(b[k])
+                form = {k: str(b.get(k) or "").strip() for k in ("name", "icon", "goal", "scope", "questions", "references", "start", "deadline", "status")}
+                if form["status"] not in M.STATUSES:
+                    form["status"] = "active"
+                return self.send_json({"job": start_job("module", job_new_module, form)})
+            if u.path == "/api/modules/status":
+                b = self.jbody()
+                return self.send_json(M.set_status(str(b.get("id")), str(b.get("status"))))
             if u.path == "/api/news/refresh":
                 b = self.jbody()
                 return self.send_json({"job": start_job("news", job_news, bool(b.get("ai", True)))})
@@ -407,8 +523,8 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/upload":
                 folder = q.get("folder", "01_standards")
                 name = os.path.basename(q.get("name", ""))
-                if not re.match(r"^\d\d_[a-z_]+$", folder) or not name or Path(name).suffix.lower() not in {".pdf", ".md", ".txt"}:
-                    return self.send_json({"error": "Chỉ nhận PDF/MD/TXT vào thư mục library/NN_xxx"}, 400)
+                if not re.match(r"^(\d\d_[a-z_]+|m_[a-z0-9_]+)$", folder) or not name or Path(name).suffix.lower() not in {".pdf", ".md", ".txt"}:
+                    return self.send_json({"error": "Chỉ nhận PDF/MD/TXT vào thư mục library/NN_xxx hoặc library/m_<module>"}, 400)
                 dest = LIB / folder
                 dest.mkdir(parents=True, exist_ok=True)
                 (dest / name).write_bytes(self.body())
@@ -461,7 +577,9 @@ class Handler(BaseHTTPRequestHandler):
             chat_model = llm.chat_model
         except Exception as e:
             models, cloud, chat_model = [], {"enabled": False, "lines": [str(e)], "next": "local"}, "?"
-        return {"phase": phase_now(), "project": s.get("project", {}), "ram_gb": round(total_ram_gb()),
+        mods = M.load()
+        return {"phase": phase_now(), "project": s.get("project", {}),
+                "modules": {"total": len(mods), "active": sum(1 for m in mods.values() if m.get("status") == "active")}, "ram_gb": round(total_ram_gb()),
                 "ollama_ok": bool(models), "models": models, "chat_model": chat_model,
                 "embed_model": s["ollama"]["embed_model"], "cloud": cloud,
                 "kb": KnowledgeBase(s["paths"]["index_db"]).stats(), "reports": len(list_reports()),
@@ -469,10 +587,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def library(self):
         out = []
+        mods = M.load()
+        owner = {d: mid for mid, m in mods.items() for d in (m.get("library") or [])}
+        for mid, m in mods.items():
+            for d in (m.get("library") or []):
+                if d.startswith("m_"):
+                    (LIB / d).mkdir(parents=True, exist_ok=True)
         for d in sorted(p for p in LIB.iterdir() if p.is_dir()):
             files = [{"name": f.name, "kb": round(f.stat().st_size / 1024)} for f in sorted(d.iterdir())
                      if f.is_file() and not f.name.startswith(".")]
-            out.append({"folder": d.name, "files": files})
+            mid = owner.get(d.name)
+            out.append({"folder": d.name, "files": files, "module": mid or "",
+                        "module_name": (mods.get(mid) or {}).get("name", "") if mid else "",
+                        "module_icon": (mods.get(mid) or {}).get("icon", "") if mid else ""})
         return out
 
 
@@ -480,9 +607,10 @@ def main():
     DATA.mkdir(exist_ok=True)
     start_job("ingest", job_ingest)  # tự nạp tài liệu mới trong library/ mỗi lần server khởi động
     threading.Thread(target=news_scheduler, daemon=True).start()  # bản tin năng lượng hằng ngày
+    threading.Thread(target=cycle_scheduler, daemon=True).start()  # báo cáo nghiên cứu mỗi 3 ngày
     host = "0.0.0.0" if remote_cfg().get("token") else "127.0.0.1"
     srv = ThreadingHTTPServer((host, PORT), Handler)
-    print(f"DT-RnD-Lab đang chạy: http://localhost:{PORT}")
+    print(f"VTI R&D Lab đang chạy: http://localhost:{PORT}")
     srv.serve_forever()
 
 

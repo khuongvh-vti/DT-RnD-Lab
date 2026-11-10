@@ -1,4 +1,4 @@
-"""Dựng trang web sơ đồ cây của Phòng R&D (một file HTML tự chứa) và phục vụ qua HTTP local.
+"""Dựng trang web sơ đồ cây của Phòng R&D VTI (theo module) (một file HTML tự chứa) và phục vụ qua HTTP local.
 
   python3 dtlab.py site    → web/dist/index.html
   python3 dtlab.py serve   → dựng rồi mở http://localhost:8766
@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 
+from . import modules as M
 from . import site_content as C
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -116,38 +117,88 @@ def report_nodes(reports_dir: Path) -> list[dict]:
     return nodes
 
 
-def team_nodes(team_cfg: dict) -> list[dict]:
+def people(team_cfg: dict, mods: dict) -> list[dict]:
+    """Trưởng phòng + khối dùng chung + chuyên viên mọi module (ngoại hình ổn định theo key)."""
+    base = {p["key"]: p for p in C.TEAM}
+    out = [{**base["director"], "role": "Trưởng phòng – Điều phối mọi module", "module": "director"}]
+    ros = M.roster(team_cfg, mods)
+    looks = M.personas(list(ros), base)
+    for k, v in ros.items():
+        p = looks[k]
+        icon = (mods.get(v["module"]) or {}).get("icon", "🤝")
+        out.append({**p, "role": f"{icon} {v['name'].replace('Chuyên viên ', '')}",
+                    "task": p.get("task") or (v.get("standing_questions") or [v.get("scope", "")])[0],
+                    "module": v["module"], "spec": v})
+    return out
+
+
+def person_node(p: dict, spec: dict) -> dict:
+    refs = ", ".join(spec.get("references", [])) or "—"
+    scope = spec.get("scope") or spec.get("mission", "")
+    qs = "".join(f"<li>{html.escape(q)}</li>" for q in spec.get("standing_questions", []))
+    body = (f"<dl><dt>Vai trò</dt><dd>{html.escape(p['role'])}</dd><dt>Phạm vi</dt><dd>{html.escape(scope.strip())}</dd>"
+            f"<dt>Tiêu chuẩn / tài liệu nền</dt><dd>{html.escape(refs)}</dd>"
+            f"<dt>Đang làm</dt><dd>{html.escape(p.get('task', ''))}</dd></dl>"
+            + (f"<h4>Câu hỏi thường trực</h4><ul>{qs}</ul>" if qs else ""))
+    return C.N(f"ns-{p['key']}", f"{p['name']} · {p['role']}", "person", p["key"], body)
+
+
+def team_nodes(team_cfg: dict, mods: dict | None = None) -> list[dict]:
+    mods = M.load() if mods is None else mods
+    ps = people(team_cfg, mods)
+    return [person_node(p, team_cfg["director"] if p["key"] == "director" else p["spec"])
+            for p in ps if p["module"] in ("director", "shared")]
+
+
+def module_nodes(team_cfg: dict, mods: dict) -> list[dict]:
+    ps = people(team_cfg, mods)
     out = []
-    for p in C.TEAM:
-        spec = team_cfg["director"] if p["key"] == "director" else team_cfg["members"].get(p["key"], {})
-        refs = ", ".join(spec.get("references", [])) if spec.get("references") else "CIGRE TB 995"
-        scope = spec.get("scope") or spec.get("mission", "")
-        qs = "".join(f"<li>{html.escape(q)}</li>" for q in spec.get("standing_questions", []))
-        body = (f"<dl><dt>Vai trò</dt><dd>{html.escape(p['role'])}</dd><dt>Phạm vi</dt><dd>{html.escape(scope.strip())}</dd>"
-                f"<dt>Tiêu chuẩn / tài liệu nền</dt><dd>{html.escape(refs)}</dd>"
-                f"<dt>Đang làm</dt><dd>{html.escape(p['task'])}</dd></dl>"
-                + (f"<h4>Câu hỏi thường trực</h4><ul>{qs}</ul>" if qs else ""))
-        out.append(C.N(f"ns-{p['key']}", f"{p['name']} · {p['role']}", "person", p["key"], body))
+    for mid, m in mods.items():
+        ph = M.phase_now(m)
+        phases = "".join(f"<li><b>{html.escape(x['code'])} · {html.escape(x['name'])}</b> – {x['start']} → {x['end']}"
+                         f"{' ← hiện tại' if x['code'] == ph['code'] else ''}</li>" for x in m.get("phases", []))
+        qs = "".join(f"<li>{html.escape(q)}</li>" for q in m.get("questions", []))
+        shared = ", ".join(html.escape(team_cfg["members"].get(k, {}).get("name", k)) for k in m.get("shared", []))
+        body = (f"<p><span class='pill'>{html.escape(M.STATUS_VI.get(m.get('status', 'active'), ''))}</span> "
+                f"<span class='pill'>{html.escape(ph['code'])} {html.escape(ph['name'])}</span></p>"
+                f"<p><b>Mục tiêu:</b> {html.escape(m.get('goal', ''))}</p><p><b>Phạm vi:</b> {html.escape(m.get('scope', ''))}</p>"
+                f"<h4>Lộ trình</h4><ul>{phases}</ul><h4>Câu hỏi nghiên cứu chính</h4><ul>{qs}</ul>"
+                f"<p class='muted'>Mượn khối dùng chung: {shared}. Tài liệu: "
+                f"{', '.join('<code>library/' + html.escape(x) + '/</code>' for x in m.get('library', []))}</p>")
+        kids = [person_node(p, p["spec"]) for p in ps if p["module"] == mid]
+        rep = ROOT / "reports" / "modules" / mid
+        if rep.exists():
+            kids += report_nodes(rep)
+        if mid == "dt":
+            kids = [C.report1, C.plan, C.tools] + kids
+        out.append(C.N(f"mod-{_slug(mid)}", f"{m.get('icon', '')} {m.get('name', mid)}", "group", "director", body, children=kids))
     return out
 
 
 def build_tree() -> dict:
     team_cfg = yaml.safe_load((ROOT / "config" / "team.yaml").read_text(encoding="utf-8"))
+    mods = M.load()
     auto = report_nodes(ROOT / "reports")
-    root = C.N("goc", "Phòng R&D Digital Twin ngành điện", "root", "director", """
-<p>Bản đồ tri thức của phòng. Bấm vào một nút để đọc chi tiết; bấm nút <b>+ / −</b> để mở hoặc thu gọn nhánh. Nhánh <i>Báo cáo trong kho</i> được dựng tự động từ thư mục <code>reports/</code>.</p>""",
-        children=[C.report1, C.plan,
+    root = C.N("goc", "Phòng R&D Năng lượng & Công nghệ VTI", "root", "director", f"""
+<p>Bản đồ tri thức của phòng, tổ chức theo <b>module nghiên cứu</b> ({len(mods)} module; Digital Twin là module đầu tiên). Bấm vào một nút để đọc chi tiết; bấm <b>+ / −</b> để mở hoặc thu gọn nhánh. Nhánh <i>Báo cáo trong kho</i> được dựng tự động từ thư mục <code>reports/</code> (báo cáo 3 ngày nằm trong <code>reports/cycles/</code>).</p>""",
+        children=[C.N("cac-module", f"Các module nghiên cứu ({len(mods)})", "group", "director",
+                      "<p>Mỗi module có mục tiêu, lộ trình, chuyên viên riêng và thư mục tài liệu riêng (<code>config/modules.yaml</code>). "
+                      "Mở module mới bằng form trong tab 🧩 Module của app.</p>", children=module_nodes(team_cfg, mods)),
                   C.N("kho-bao-cao", "Báo cáo trong kho (tự động)", "group", "director",
-                      "<p>Các báo cáo tuần do Qwen local và Claude tạo ra, đọc từ <code>reports/</code>.</p>", children=auto),
-                  C.N("nhan-su", "Nhân sự phòng (8 agent)", "group", "director",
-                      "<p>Mỗi chuyên viên là một AI agent có vai trò, tiêu chuẩn và câu hỏi thường trực riêng (sửa trong <code>config/team.yaml</code>).</p>",
-                      children=team_nodes(team_cfg)),
-                  C.tools])
+                      "<p>Báo cáo 3 ngày, báo cáo nghiên cứu, bản tin do Qwen local và Claude tạo ra, đọc từ <code>reports/</code>.</p>", children=auto),
+                  C.N("nhan-su", "Ban điều phối & khối dùng chung", "group", "director",
+                      "<p>Trưởng phòng và các chuyên viên mọi module mượn được (sửa trong <code>config/team.yaml</code>). "
+                      "Chuyên viên riêng nằm trong từng module.</p>", children=team_nodes(team_cfg, mods))])
     return root
 
 
 def build(out_dir: Path = DIST) -> Path:
-    data = {"tree": build_tree(), "team": C.TEAM,
+    team_cfg = yaml.safe_load((ROOT / "config" / "team.yaml").read_text(encoding="utf-8"))
+    mods = M.load()
+    ps = [{k: v for k, v in p.items() if k != "spec"} for p in people(team_cfg, mods)]
+    active = {mid for mid, m in mods.items() if m.get("status", "active") == "active"}
+    data = {"tree": build_tree(), "team": ps,
+            "scene": [p["key"] for p in ps if p["module"] in ("director", "shared") or p["module"] in active],
             "built": dt.datetime.now().strftime("%d/%m/%Y %H:%M")}
     page = TEMPLATE.read_text(encoding="utf-8").replace(
         "/*__DT_DATA__*/null", json.dumps(data, ensure_ascii=False).replace("</", "<\\/"))

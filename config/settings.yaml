@@ -1,4 +1,4 @@
-# Cấu hình chung Phòng R&D Digital Twin (chạy local)
+# Cấu hình chung Phòng R&D Năng lượng & Công nghệ VTI (chạy local) – module Digital Twin là module đầu tiên
 ollama:
   host: "http://127.0.0.1:11434"
   # Máy anh Khương: MacBook Apple Silicon 16 GB RAM → qwen3.5:9b (~6.6 GB). Đặt "auto" để tự chọn theo RAM.
@@ -54,6 +54,13 @@ rag:
   overlap_chars: 200
   top_k: 8
 
+# Chu kỳ báo cáo của cả phòng: mỗi 3 ngày, sau giờ hẹn, app tự chạy các module đang hoạt động (cần Ollama đang chạy)
+cycle:
+  auto: true
+  every_days: 3
+  time: "07:00"
+
+# Thông tin module Digital Twin (giữ cho tương thích; lộ trình các module nằm trong config/modules.yaml)
 project:
   name: "Nghiên cứu Digital Twin ngành điện – Transformer DT & Substation DT"
   deadline: "2027-05-30"     # hết GĐ4 – go/no-go sản phẩm (lộ trình nghiên cứu)

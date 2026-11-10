@@ -1,4 +1,4 @@
-// Phòng làm việc minh họa: trưởng phòng đứng ở bảng, 7 nghiên cứu viên ngồi máy (SVG thuần)
+// Phòng làm việc minh họa: trưởng phòng đứng ở bảng, các chuyên viên ngồi máy (số người thay đổi theo module, SVG thuần)
 const NS = "http://www.w3.org/2000/svg";
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
@@ -65,7 +65,7 @@ function person(svg, p, x, floor, standing, onPick) {
     const sc = el("g", { class: "screen" }, g0);
     el("rect", { x: x - 27, y: floor - 67, width: 54, height: 28, rx: 2, fill: css("--primary-2"), opacity: .9 }, sc);
     el("polyline", { points: `${x - 23},${floor - 45} ${x - 14},${floor - 52} ${x - 6},${floor - 48} ${x + 3},${floor - 60} ${x + 12},${floor - 54} ${x + 22},${floor - 62}`, fill: "none", stroke: "#fff", "stroke-width": 1.6 }, sc);
-    el("text", { x, y: floor + 20, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: ink }, g0).textContent = p.name;
+    el("text", { x, y: floor + 20, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: ink }, g0).textContent = (p.module_icon ? p.module_icon + " " : "") + p.name;
   }
   const by = standing ? floor - 170 : floor - 138, bx = standing ? x + 8 : x - 22;
   el("rect", { x: bx, y: by, width: 44, height: 20, rx: 10, fill: "#fff", stroke: css("--line") }, g0);
@@ -77,17 +77,19 @@ function person(svg, p, x, floor, standing, onPick) {
 
 export function drawOffice(host, team, onPick) {
   host.innerHTML = "";
-  const svg = el("svg", { viewBox: "0 0 1100 300", role: "img", "aria-label": "Phòng R&D Digital Twin đang làm việc" }, host);
-  el("rect", { x: 0, y: 0, width: 1100, height: 210, fill: css("--wall") }, svg);
-  el("rect", { x: 0, y: 210, width: 1100, height: 90, fill: css("--floor") }, svg);
+  const nStaff = team.filter(p => p.key !== "director").length;
+  const W = Math.max(1100, 320 + nStaff * 108 + 230);
+  const svg = el("svg", { viewBox: `0 0 ${W} 300`, role: "img", "aria-label": "Phòng R&D VTI đang làm việc" }, host);
+  el("rect", { x: 0, y: 0, width: W, height: 210, fill: css("--wall") }, svg);
+  el("rect", { x: 0, y: 210, width: W, height: 90, fill: css("--floor") }, svg);
   // cửa sổ: lưới truyền tải
   const win = el("g", {}, svg);
-  el("rect", { x: 880, y: 24, width: 200, height: 92, rx: 6, fill: "#fff", stroke: css("--line"), "stroke-width": 3 }, win);
-  [925, 1010].forEach(x => {
+  el("rect", { x: W - 220, y: 24, width: 200, height: 92, rx: 6, fill: "#fff", stroke: css("--line"), "stroke-width": 3 }, win);
+  [W - 175, W - 90].forEach(x => {
     const b = 108;
     el("path", { d: `M${x - 16},${b} L${x},${b - 64} L${x + 16},${b} M${x - 11},${b - 22} L${x + 11},${b - 22} M${x - 6},${b - 42} L${x + 6},${b - 42} M${x - 22},${b - 50} L${x + 22},${b - 50}`, stroke: css("--muted"), "stroke-width": 1.6, fill: "none" }, win);
   });
-  el("path", { d: "M885,62 Q967,78 1075,62", stroke: css("--muted"), "stroke-width": 1, fill: "none" }, win);
+  el("path", { d: `M${W - 215},62 Q${W - 133},78 ${W - 25},62`, stroke: css("--muted"), "stroke-width": 1, fill: "none" }, win);
   // bảng trắng với cây lộ trình mini
   const wb = el("g", {}, svg);
   el("rect", { x: 30, y: 26, width: 170, height: 104, rx: 6, fill: "#fff", stroke: css("--line"), "stroke-width": 3 }, wb);

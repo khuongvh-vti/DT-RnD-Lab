@@ -126,7 +126,7 @@ footer{color:var(--muted);font-size:12px;padding:0 20px 20px}
 <main>
   <section class="office" aria-label="Phòng làm việc">
     <div class="office-head"><h2>Phòng làm việc</h2><span>Bấm vào một người để xem phần việc và các nhánh họ phụ trách</span></div>
-    <svg id="scene" viewBox="0 0 1100 300" role="img" aria-label="Trưởng phòng và 7 chuyên viên AI đang làm việc"></svg>
+    <svg id="scene" viewBox="0 0 1100 300" role="img" aria-label="Trưởng phòng và các chuyên viên AI đang làm việc"></svg>
     <div class="cards" id="cards"></div>
   </section>
 
@@ -280,10 +280,14 @@ $("#fit").onclick = fit;
 const scene = $("#scene");
 function drawScene() {
   scene.innerHTML = "";
-  el("rect", { x: 0, y: 0, width: 1100, height: 210, fill: css("--wall") }, scene);
-  el("rect", { x: 0, y: 210, width: 1100, height: 90, fill: css("--floor") }, scene);
+  const inScene = DATA.scene ? new Set(DATA.scene) : null;
+  const staff = DATA.team.filter(p => p.key !== "director" && (!inScene || inScene.has(p.key)));
+  const W = Math.max(1100, 320 + staff.length * 108 + 230), dx = W - 1100;
+  scene.setAttribute("viewBox", `0 0 ${W} 300`);
+  el("rect", { x: 0, y: 0, width: W, height: 210, fill: css("--wall") }, scene);
+  el("rect", { x: 0, y: 210, width: W, height: 90, fill: css("--floor") }, scene);
   // cửa sổ: lưới truyền tải ngoài trời
-  const win = el("g", {}, scene);
+  const win = el("g", { transform: `translate(${dx},0)` }, scene);
   el("rect", { x: 880, y: 24, width: 200, height: 92, rx: 6, fill: css("--panel"), stroke: css("--line"), "stroke-width": 3 }, win);
   [[925, 108], [1010, 108]].forEach(([x, b]) => {
     el("path", { d: `M${x - 16},${b} L${x},${b - 64} L${x + 16},${b} M${x - 11},${b - 22} L${x + 11},${b - 22} M${x - 6},${b - 42} L${x + 6},${b - 42} M${x - 22},${b - 50} L${x + 22},${b - 50}`, stroke: css("--muted"), "stroke-width": 1.6, fill: "none" }, win);
@@ -299,7 +303,6 @@ function drawScene() {
   [[0, 1], [0, 2], [0, 3], [1, 4], [1, 5], [3, 6], [3, 7]].forEach(([a, b]) => el("path", { d: `M${pts[a][0]},${pts[a][1]} C${(pts[a][0] + pts[b][0]) / 2},${pts[a][1]} ${(pts[a][0] + pts[b][0]) / 2},${pts[b][1]} ${pts[b][0]},${pts[b][1]}`, stroke: css("--teal"), fill: "none", "stroke-width": 1.4 }, wb));
   pts.forEach(([x, y], i) => el("circle", { cx: x, cy: y, r: i ? 3.5 : 5, fill: i ? css("--teal") : css("--accent") }, wb));
   // người
-  const staff = DATA.team.filter(p => p.key !== "director");
   const boss = DATA.team.find(p => p.key === "director");
   drawPerson(boss, 230, 250, true);
   staff.forEach((p, i) => drawPerson(p, 320 + i * 108, 250, false));

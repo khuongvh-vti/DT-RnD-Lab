@@ -1,19 +1,22 @@
-# DT-RnD-Lab – Phòng R&D Digital Twin ngành điện (VTICorp)
+# VTI R&D Lab – Phòng R&D Năng lượng & Công nghệ (VTICorp) · repo DT-RnD-Lab
 
-Phòng nghiên cứu gồm 8 AI agent chạy **hoàn toàn local** trên máy anh bằng **Qwen + Ollama**. Mục tiêu hiện tại là
-**nghiên cứu để hiểu sâu hệ thống Digital Twin ngành điện** (Transformer DT và Substation DT) theo lộ trình 5 giai đoạn.
+Phòng nghiên cứu gồm các AI agent chạy **local** trên máy anh bằng **Qwen + Ollama**, tổ chức theo **MODULE nghiên cứu**.
+Digital Twin là module đầu tiên; anh mở thêm module bất kỳ lúc nào bằng form **➕ Mở module mới** trong tab 🧩 Module.
 
-## Nhân sự (config/team.yaml)
-| Agent | Vai trò |
-| --- | --- |
-| `director` | Trưởng phòng: lập kế hoạch tuần, giao việc, phản biện, tổng hợp báo cáo |
-| `standards` | Tiêu chuẩn & Kiến trúc DT (ISO/IEC 30173, IEC 63278, IEC 61850, CIM) |
-| `physics` | Mô hình vật lý: nhiệt IEC 60076-7, DGA IEC 60599, PD IEC 60270 |
-| `data_ai` | Dữ liệu & AI: Health Index, anomaly detection, hybrid physics-ML |
-| `substation` | Substation DT trạm 110 kV: SCL/SCD, topology, máy cắt/GIS, tổng hợp cảnh báo |
-| `ot_cyber` | OT/IoT & an ninh mạng: IEC 61850/104, MQTT, IEC 62443/62351 |
-| `benchmark` | Benchmark vendor/utility quốc tế và trong nước |
-| `vn_market` | Thị trường, chính sách, đấu thầu, kế hoạch pilot tại VN |
+## Tổ chức
+```
+Trưởng phòng (director) ── điều phối mọi module, báo cáo 3 ngày/lần
+├─ Khối dùng chung (config/team.yaml): standards · data_ai · ot_cyber · benchmark · vn_market
+└─ Module (config/modules.yaml) – mỗi module có mục tiêu, lộ trình, chuyên viên riêng, thư mục library/m_<module>/
+   ├─ 🧬 dt            Digital Twin ngành điện          physics, substation                  [Đang nghiên cứu]
+   ├─ 📡 monitoring    Online Monitoring & Chẩn đoán     pd_expert, dga_oil, sensors_thermal  [Chờ kích hoạt]
+   ├─ 🩺 asset_health  Asset Management & Health Index   health_index, maintenance_strategy   [Chờ kích hoạt]
+   ├─ 🔋 bess          BESS & Tích hợp NLTT              bess_tech, grid_integration          [Chờ kích hoạt]
+   └─ 📊 market        Thị trường, Đấu thầu & Cơ hội VTI tender_analyst, competitor_watch     [Đang nghiên cứu]
+```
+- **Đang nghiên cứu** (active): được đưa vào chu kỳ báo cáo. **Chờ kích hoạt** (standby): đã dựng khung, chờ anh đưa nội dung rồi bấm ▶️ Kích hoạt. **Tạm dừng** (paused).
+- **Mở module mới:** tab 🧩 Module → ➕ Mở module mới → nhập tên, mục tiêu, phạm vi, câu hỏi, tiêu chuẩn, hạn. Trưởng phòng (Qwen) tự thiết kế 2–4 chuyên viên riêng + lộ trình + từ khóa, tạo `library/m_<module>/` và bài giới thiệu trong `reports/modules/<module>/`. Ollama chưa chạy → dùng khung mặc định.
+- **Báo cáo 3 ngày:** server tự chạy sau 07:00 mỗi 3 ngày (khi Ollama đang chạy; chỉnh trong `config/settings.yaml → cycle`) → `reports/cycles/<ngày>/BAO_CAO_3_NGAY.md` gồm: điểm mới, mới nghiên cứu theo từng module, tài liệu mới vào kho, cơ hội từ bản tin, quyết định cần duyệt, kế hoạch 3 ngày tới. Chạy tay: nút **🗓 Chạy chu kỳ ngay** hoặc `python3 dtlab.py cycle`.
 
 ## Cài đặt (macOS Apple Silicon)
 ```bash
@@ -28,13 +31,15 @@ Chọn model tự động theo RAM (`config/settings.yaml` → `chat_model: auto
 source .venv/bin/activate
 python3 dtlab.py doctor                                  # kiểm tra máy/Ollama/model/kho
 python3 dtlab.py ingest                                  # nạp tài liệu mới trong library/
-python3 dtlab.py week --focus "Chốt danh mục tín hiệu MVP"  # 1 vòng nghiên cứu tuần → reports/YYYY-Www/
+python3 dtlab.py modules                                 # liệt kê module & trạng thái
+python3 dtlab.py module-status bess active               # kích hoạt / tạm dừng module
+python3 dtlab.py cycle --modules dt,market --focus "..." # 1 chu kỳ nghiên cứu → reports/cycles/<ngày>/
 python3 dtlab.py ask "Ngưỡng cảnh báo DGA cho MBA 110 kV?"
 python3 dtlab.py thermal --load 1.2 --ambient 35 --cooling ONAF
 python3 dtlab.py scl tests/data/sample.scd                 # khung Substation DT từ file SCD
 python3 dtlab.py dga --h2 100 --ch4 120 --c2h2 1 --c2h4 50 --c2h6 65
 ```
-Chạy tự động 8:00 thứ Hai: xem hướng dẫn trong `scripts/com.vticorp.dtlab.weekly.plist`.
+Chạy tự động: `bash scripts/install_app.sh` (server luôn chạy nền và tự làm báo cáo 3 ngày/lần).
 
 ## Ứng dụng web trên Chrome (giống EnglishCoach) – http://localhost:8766
 - **Mở nhanh:** nhấp đúp `Mo DT-RnD-Lab.command` (tự bật Ollama + server nếu chưa chạy, rồi mở Chrome).
@@ -43,12 +48,13 @@ Chạy tự động 8:00 thứ Hai: xem hướng dẫn trong `scripts/com.vticor
 
 | Tab | Chức năng |
 |---|---|
-| 🏠 Hôm nay | Giai đoạn hiện tại & % tiến độ, phòng làm việc minh họa (bấm người để hỏi), số liệu kho, báo cáo mới nhất, nút chạy vòng tuần |
+| 🏠 Hôm nay | Thẻ tiến độ từng module, phòng làm việc minh họa (bấm người để hỏi), số liệu kho, cơ hội hôm nay, báo cáo 3 ngày mới nhất |
+| 🧩 Module | Danh sách module, chi tiết (lộ trình, câu hỏi, chuyên viên riêng + mượn chung), Kích hoạt/Tạm dừng, chạy chu kỳ riêng, form ➕ Mở module mới |
 | 🌳 Sơ đồ cây | Cây tri thức: bấm nút để xem chi tiết; mọi `.md` trong `reports/` tự thành nhánh |
-| 🤖 Hỏi phòng R&D | Hỏi Trưởng phòng hoặc từng chuyên viên (RAG + Qwen), lưu lịch sử, xuất từng câu trả lời hoặc toàn bộ ra Word |
+| 🤖 Hỏi phòng R&D | Chọn module (hoặc cả phòng) rồi hỏi Trưởng phòng hoặc từng chuyên viên (RAG + Qwen), lưu lịch sử, xuất Word |
 | 📰 Tin tức & Cơ hội | Tự tổng hợp 06:30 mỗi sáng (Google News VN/quốc tế, RSS, arXiv): dự án, đấu thầu, kế hoạch triển khai, bài báo, nghiên cứu ngành năng lượng; lọc **🎯 Cơ hội VTI**, Qwen gợi ý hành động; nút "Cập nhật ngay", xuất Word. Cấu hình nguồn/từ khóa: `config/news.yaml`; dữ liệu lưu `data/news/` (không đưa lên git) |
 | 📑 Báo cáo | Đọc mọi báo cáo tuần, nút **📄 Xuất Word** (.docx A4, header, số trang, bảng, danh sách) |
-| 👥 Nhân sự | 8 thành viên: phạm vi, tài liệu gốc, câu hỏi thường trực |
+| 👥 Nhân sự | Ban điều phối, khối dùng chung và chuyên viên từng module: phạm vi, tài liệu gốc, câu hỏi thường trực |
 | 🧮 Công cụ | Nhiệt MBA IEC 60076-7 (đồ thị θh/θo, loss of life), DGA Duval/IEC 60599, đọc SCD IEC 61850-6 |
 | 📚 Kho tài liệu | Kéo thả PDF vào `library/`, nạp embedding |
 | ⚙️ Hệ thống | Trạng thái Ollama, model, cloud miễn phí |
@@ -77,11 +83,11 @@ Mỗi báo cáo mảng ghi rõ engine đã dùng. Thống kê token nằm trong 
 
 ## Cấu trúc
 ```
-config/      settings.yaml (model, đường dẫn, deadline) · team.yaml (vai trò, tiêu chuẩn, câu hỏi thường trực)
-lab/         llm.py (Ollama) · cloud.py (cloud + định tuyến hybrid) · knowledge.py (RAG SQLite) · team.py (Trưởng phòng + chuyên viên) · hardware.py
+config/      settings.yaml (model, chu kỳ) · team.yaml (Trưởng phòng + khối dùng chung) · modules.yaml (module) · news.yaml
+lab/         llm.py (Ollama) · cloud.py (hybrid) · knowledge.py (RAG SQLite) · team.py (Trưởng phòng, chu kỳ 3 ngày) · modules.py (module) · news.py
 lab/physics/ transformer_thermal.py (IEC 60076-7) · dga.py (Duval 1, IEC 60599) · scl.py (đọc SCD IEC 61850-6)
 library/     kho tài liệu (không đẩy PDF bản quyền lên git)
-reports/     báo cáo tuần + báo cáo theo yêu cầu
+reports/     cycles/ (báo cáo 3 ngày) · modules/ (giới thiệu module) · news/ (bản tin) · báo cáo nghiên cứu
 tests/       kiểm thử offline (pytest)
 ```
 
