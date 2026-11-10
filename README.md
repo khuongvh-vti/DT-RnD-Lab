@@ -36,19 +36,23 @@ python3 dtlab.py dga --h2 100 --ch4 120 --c2h2 1 --c2h4 50 --c2h6 65
 ```
 Chạy tự động 8:00 thứ Hai: xem hướng dẫn trong `scripts/com.vticorp.dtlab.weekly.plist`.
 
-## Chế độ hybrid: local + cloud lớn
+## Chế độ hybrid – ưu tiên model MIỄN PHÍ
 Model local (`qwen3.5:9b`) có giới hạn suy luận. Vì vậy các vai trò cần suy luận sâu (`director`, `physics`, `standards`,
-`substation`, `data_ai`) có thể chạy trên **Qwen-Max (Alibaba Cloud Model Studio, endpoint International)**:
+`substation`, `data_ai`) gọi cloud theo chuỗi ưu tiên sau:
+
+1. **Alibaba Model Studio (Singapore), quota miễn phí:** mỗi model Qwen có khoảng 1M token free trong 90 ngày.
+   Code xoay vòng `qwen3.8-max → qwen3.7-max → qwen3.7-plus → qwen3.6-plus → qwen3-max → qwen3.8-flash`, dừng ở 90% quota mỗi model.
+2. **OpenRouter `:free`:** khoảng 50 request/ngày (1.000/ngày nếu từng nạp ≥ 10 USD). Lệnh `dtlab.py free-models` liệt kê model free hiện có.
+3. **Trả phí:** chỉ chạy khi `allow_paid: true` (mặc định **tắt**), có trần ngân sách tháng.
+4. **Local Ollama:** luôn là phương án cuối, và là bắt buộc với dữ liệu khách hàng (`library/06_vti_data`).
+
 ```bash
-export DASHSCOPE_API_KEY="sk-..."            # thêm vào ~/.zshrc để giữ lâu dài
-# config/settings.yaml → cloud.enabled: true
-python3 dtlab.py doctor                      # kiểm tra: "Cloud: BẬT …"
+export DASHSCOPE_API_KEY="sk-..."      # thêm vào ~/.zshrc
+export OPENROUTER_API_KEY="sk-or-..."
+# config/settings.yaml → cloud.enabled: true ; sửa cloud.providers[0].expires = ngày kích hoạt + 90
+python3 dtlab.py doctor                # xem quota đã dùng của từng model và engine kế tiếp
 ```
-Khóa an toàn:
-- Embedding và kho tài liệu luôn ở máy anh.
-- Nếu ngữ cảnh có đoạn trích từ `library/06_vti_data` (dữ liệu khách hàng), yêu cầu đó bị buộc chạy local.
-- Hệ thống tự về local khi vượt `monthly_budget_usd`, khi cloud lỗi, hoặc khi chưa có key.
-- Chi phí ghi theo tháng trong `data/cloud_usage.json`. Mỗi báo cáo tuần ghi rõ engine đã dùng cho từng mảng.
+Mỗi báo cáo mảng ghi rõ engine đã dùng. Thống kê token nằm trong `data/cloud_usage.json`.
 
 ## Cấu trúc
 ```

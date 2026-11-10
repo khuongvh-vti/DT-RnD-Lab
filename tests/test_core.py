@@ -80,29 +80,36 @@ def test_scl_parse():
     assert {"SIML", "STMP", "SPDC"} <= classes
 
 
-def test_hybrid_routing_and_sensitive_guard(tmp_path, monkeypatch):
-    from lab.cloud import HybridLLM, is_sensitive
+def test_free_first_rotation_and_guards(tmp_path, monkeypatch):
+    from lab.cloud import HybridLLM, QuotaExceeded, is_sensitive
 
     class Local(FakeLLM):
         def chat(self, system, user, **kw):
             return "LOCAL"
 
-    class Cloud:
-        last_usage = {"prompt_tokens": 1000, "completion_tokens": 500}
+    calls = []
 
-        def chat(self, system, user, **kw):
-            return "CLOUD"
+    class FakeClient:
+        def __init__(self, name, fail_models=()):
+            self.name, self.fail = name, set(fail_models)
 
-    cfg = {"enabled": True, "roles": ["director"], "monthly_budget_usd": 10,
-           "base_url": "x", "model": "m", "api_key_env": "TEST_KEY"}
-    monkeypatch.setenv("TEST_KEY", "k")
+        def chat(self, model, system, user):
+            calls.append(f"{self.name}/{model}")
+            if model in self.fail:
+                raise QuotaExceeded(model)
+            return f"{self.name}/{model}", {"prompt_tokens": 800_000, "completion_tokens": 150_000}
+
+    cfg = {"enabled": True, "roles": ["director"], "allow_paid": False, "providers": []}
     h = HybridLLM(Local(), cfg, str(tmp_path), log=lambda *_: None)
-    h.cloud = Cloud()
-    assert h.chat("s", "u", role="director") == "CLOUD"
-    assert h.chat("s", "u", role="director", sensitive=True) == "LOCAL"   # dữ liệu nhạy cảm không lên cloud
-    assert h.chat("s", "u", role="benchmark") == "LOCAL"                  # vai trò không cấu hình cloud
-    assert h.ledger.month_cost() > 0
-    cfg["monthly_budget_usd"] = 0                                         # chạm ngân sách → local
-    assert h.chat("s", "u", role="director") == "LOCAL"
+    free = {"name": "ms", "models": ["max", "plus"], "token_quota_per_model": 1_000_000, "quota_safety": 0.9}
+    orf = {"name": "or", "models": ["q:free"], "daily_requests": 1}
+    h.providers = [(free, FakeClient("ms", fail_models={"plus"})), (orf, FakeClient("or"))]
+
+    assert h.chat("s", "u", role="director") == "ms/max"          # model free mạnh nhất trước
+    assert h.chat("s", "u", role="director") == "or/q:free"       # max đã 1M ≥ 90% → plus hết quota(429) → OpenRouter
+    assert h.chat("s", "u", role="director") == "LOCAL"           # OpenRouter hết lượt/ngày → local
+    assert h.chat("s", "u", role="director", sensitive=True) == "LOCAL"
+    assert h.chat("s", "u", role="benchmark") == "LOCAL"
+    assert h.ledger.month_cost() == 0.0                            # không phát sinh phí
     assert is_sensitive(["/x/library/06_vti_data/a.pdf"], ["library/06_vti_data"])
     assert not is_sensitive(["/x/library/01_standards/a.pdf"], ["library/06_vti_data"])

@@ -43,8 +43,8 @@ class Member:
                   "Viết báo cáo mảng của bạn (markdown, ≤ 600 từ) gồm: 1) Kết luận chính; 2) Phân tích kỹ thuật "
                   "có trích [S#]; 3) Đề xuất áp dụng cho MVP Q1/2027; 4) Câu hỏi mở / dữ liệu cần bổ sung.")
         sens = is_sensitive([h.source for h in hits], self.sensitive_paths)
-        engine = self.llm.route(self.key, sens) if hasattr(self.llm, "route") else "local"
         body = self.llm.chat(self.system, prompt, role=self.key, sensitive=sens)
+        engine = getattr(self.llm, "last_engine", "local")
         srcs = [f"[S{i}] {Path(h.source).name} – tr.{h.page}" for i, h in enumerate(hits, 1)]
         return MemberReport(self.key, self.spec["name"], task, body, srcs, sens, engine)
 

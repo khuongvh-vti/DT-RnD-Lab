@@ -8,19 +8,41 @@ ollama:
   num_ctx: 16384        # 16 GB RAM: giữ 16K context để không tràn bộ nhớ
   timeout_s: 900
 
-# Model cloud lớn cho các việc cần suy luận sâu (hybrid). Bật bằng: enabled: true + export DASHSCOPE_API_KEY=...
+# ===== Model cloud: ƯU TIÊN MIỄN PHÍ, xoay vòng nhiều model; hết free mới đến trả phí (nếu cho phép) rồi local =====
+# Bật: cloud.enabled: true + đặt biến môi trường API key (thêm vào ~/.zshrc):
+#   export DASHSCOPE_API_KEY="sk-..."     # Alibaba Cloud Model Studio, region Singapore (International)
+#   export OPENROUTER_API_KEY="sk-or-..." # OpenRouter (model ':free')
 cloud:
   enabled: false
-  provider: "Alibaba Cloud Model Studio (DashScope, International – Singapore)"
-  base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-  api_key_env: "DASHSCOPE_API_KEY"
-  model: "qwen3-max"            # có thể đổi sang flagship mới hơn (vd. qwen3.7-max / qwen3.8-max) sau khi kiểm tra console
+  allow_paid: false            # false = KHÔNG BAO GIỜ gọi model trả phí
+  monthly_budget_usd: 10       # chỉ áp dụng khi allow_paid: true
   temperature: 0.3
-  roles: ["director", "physics", "standards", "substation", "data_ai"]   # agent dùng cloud; còn lại chạy local
-  sensitive_paths: ["library/06_vti_data"]   # đoạn trích từ đây → luôn chạy local, không gửi cloud
-  monthly_budget_usd: 10
-  price_in_per_m: 1.20          # USD / 1M token input (qwen3-max, international) – cập nhật theo bảng giá
-  price_out_per_m: 6.00
+  roles: ["director", "physics", "standards", "substation", "data_ai"]   # vai trò dùng cloud; còn lại local
+  sensitive_paths: ["library/06_vti_data"]                               # dữ liệu khách hàng → luôn local
+  providers:
+    - name: "modelstudio-free"
+      base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+      api_key_env: "DASHSCOPE_API_KEY"
+      # Mỗi model có quota miễn phí riêng (~1M token, 90 ngày từ khi kích hoạt) → xoay vòng, mạnh nhất trước.
+      # Tên model đổi nhanh: kiểm tra mục Free quota trên console Model Studio và sửa danh sách này.
+      models: ["qwen3.8-max", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "qwen3-max", "qwen3.8-flash"]
+      token_quota_per_model: 1000000
+      quota_safety: 0.9        # dừng ở 90% để không phát sinh phí
+      expires: "2027-02-08"    # = ngày kích hoạt + 90 ngày; sửa theo ngày anh kích hoạt thực tế
+    - name: "openrouter-free"
+      base_url: "https://openrouter.ai/api/v1"
+      api_key_env: "OPENROUTER_API_KEY"
+      models: ["qwen/qwen3-coder:free", "qwen/qwen3-235b-a22b:free", "deepseek/deepseek-r1:free"]
+      daily_requests: 45       # free: 50 req/ngày (1.000 nếu từng nạp ≥10 USD) – để dư biên
+      headers: {"X-Title": "VTI DT-RnD-Lab"}
+    - name: "modelstudio-paid"
+      paid: true
+      base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+      api_key_env: "DASHSCOPE_API_KEY"
+      models: ["qwen3.7-plus"]
+      price_in_per_m: 0.40
+      price_out_per_m: 1.60
+
 
 paths:
   library: "library"        # kho tài liệu (PDF/MD/TXT) – anh bỏ tài liệu vào đây
